@@ -1,0 +1,61 @@
+app:
+  name: "orchestrator"
+server:
+  port: 8200
+  error:
+    include-message: always
+    include-binding-errors: always
+    include-exception: true
+spring:
+  application:
+    name: PROOF Orchestrator
+    version: '@project.version@'
+    buildAt: '@maven.build.timestamp@'
+  main:
+    log-startup-info: false
+  output:
+    ansi:
+      enabled: ALWAYS
+  rabbitmq:
+    host: localhost
+    port: 5672
+    password: admin
+    username: admin
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          jwk-set-uri: http://localhost:8080/realms/proof/protocol/openid-connect/certs
+      client:
+        provider:
+          keycloak:
+            token-uri: http://localhost:8080/realms/proof/protocol/openid-connect/token
+            user-name-attribute: preferred_username
+        registration:
+          keycloak:
+            client-id: proof
+            client-secret: GJyYTv97TtWI3TiEOTqtc9eiakgYP9bK
+            client-name: proof
+            authorization-grant-type: client_credentials
+proof:
+  orchestration:
+    k8s:
+      namespace: webis
+    processing: DOCKER
+    shutdown:
+      timeout: 2
+  volume: proof-files
+timezone: Europe/Berlin
+springdoc:
+  show-actuator: false
+logging:
+  level:
+    root: info
+  config: 'classpath:logback-spring-dev.xml'
+cors:
+  methods:
+    - "*"
+  origins:
+    - "*"
+  headers:
+    - "*"

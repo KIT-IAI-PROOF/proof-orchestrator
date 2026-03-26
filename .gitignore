@@ -1,0 +1,8 @@
+debug/
+target/
+.idea
+.run
+
+src/main/resources/import/
+
+generated/
