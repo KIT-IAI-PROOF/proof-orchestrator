@@ -1,0 +1,86 @@
+app:
+  name: "orchestrator"
+server:
+  port: 8200
+  error:
+    include-message: always
+    include-binding-errors: always
+    include-exception: true
+spring:
+  application:
+    name: PROOF Orchestrator
+    version: '@project.version@'
+    buildAt: '@maven.build.timestamp@'
+  main:
+    log-startup-info: false
+    banner-mode: console
+  datasource:
+    url: jdbc:postgresql://localhost:5432/proof
+  data:
+    redis:
+      host: localhost
+      port: 6379
+  output:
+    ansi:
+      enabled: ALWAYS
+  rabbitmq:
+    host: localhost
+    port: 5672
+    password: admin
+    username: admin
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: http://localhost:8080/realms/proof
+          jwk-set-uri: http://localhost:8080/realms/proof/protocol/openid-connect/certs
+      client:
+        provider:
+          keycloak:
+            token-uri: http://localhost:8080/realms/proof/protocol/openid-connect/token
+            user-name-attribute: preferred_username
+        registration:
+          keycloak:
+            client-id: proof
+            client-secret: ""
+            client-name: proof
+            authorization-grant-type: client_credentials
+websocket:
+  broker:
+    relayhost: localhost
+proof:
+  orchestration:
+    k8s:
+      namespace: webis
+    processing: DOCKER
+    shutdown:
+      timeout: 2
+    loglevel: debug
+  worker:
+    loglevel: debug
+    logging:
+      directory: /tmp/proof/executions/%EXEC_ID%/logs
+  workspace:
+    directory: /tmp/proof
+  attachments:
+    directory: /tmp/proof/attachments
+  userdata:
+    directory: /tmp/proof/userdata
+  volume: proof-files
+  config:
+    basepath: http://localhost:8100
+
+timezone: Europe/Berlin
+springdoc:
+  show-actuator: false
+logging:
+  level:
+    root: info
+  config: 'classpath:logback-spring-test.xml'
+cors:
+  methods:
+    - "*"
+  origins:
+    - "*"
+  headers:
+    - "*"
