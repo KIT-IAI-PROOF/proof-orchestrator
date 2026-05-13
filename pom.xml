@@ -10,9 +10,9 @@
         <relativePath />
     </parent>
 
-    <groupId>edu.kit.iai.webis</groupId>
+    <groupId>edu.kit.iai.webis.proof</groupId>
     <artifactId>proof-orchestrator</artifactId>
-    <version>4.8.10</version>
+    <version>1.2.0</version>
     <name>PROOF Orchestrator</name>
     <description>PROOF Orchestrator</description>
     <packaging>jar</packaging>
@@ -22,11 +22,11 @@
         <maven.compiler.source>21</maven.compiler.source>
         <maven.compiler.target>21</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <gitHost>gitlab.kit.edu/</gitHost>
-        <gitUserId>kit/iai/webis/proof2</gitUserId>
+        <gitHost>github.com/</gitHost>
+        <gitUserId>KIT-IAI-PROOF</gitUserId>
         <gitRepoId>proof-orchestrator</gitRepoId>
-        <model.version>3.4.1</model.version>
-        <config.manager.version>1.4.17</config.manager.version>
+        <model.version>1.0.0</model.version>
+        <config.manager.version>1.2.0</config.manager.version>
     </properties>
 
     <dependencies>
@@ -52,9 +52,9 @@
             <artifactId>spring-boot-starter-webflux</artifactId>
         </dependency>
         <dependency>
-            <groupId>edu.kit.iai.webis</groupId>
+            <groupId>edu.kit.iai.webis.proof</groupId>
             <artifactId>proof-utils</artifactId>
-	    	<version>4.4.13</version>
+	    	<version>1.0.0</version>
         </dependency>
 		<!-- Spring starters -->
         <dependency>
@@ -217,7 +217,7 @@
                                 <additionalProperty>supportsES6=true</additionalProperty>
                                 <additionalProperty>withInterfaces=true</additionalProperty>
                                 <additionalProperty>npmVersion=${project.version}</additionalProperty>
-                                <additionalProperty>npmName=@webis/proof-orchestrator-client</additionalProperty>
+                                <additionalProperty>npmName=@kit-iai-proof/proof-orchestrator-client</additionalProperty>
                             </additionalProperties>
                         </configuration>
                     </execution>
@@ -238,7 +238,6 @@
                             <gitHost>${gitHost}</gitHost>
                             <gitUserId>${gitUserId}</gitUserId>
                             <gitRepoId>${gitRepoId}</gitRepoId>
-                            <gitHost>gitlab.kit.edu</gitHost>
                             <artifactId>orchestrator-client</artifactId>
                             <groupId>edu.kit.iai.webis.proof</groupId>
                             <artifactVersion>${project.version}</artifactVersion>
@@ -291,16 +290,15 @@
 
     <repositories>
         <repository>
-            <id>iai-artifactory</id>
-            <url>https://iai-artifactory.iai.kit.edu/artifactory/webis/</url>
+            <id>github-proof</id>
+            <url>https://maven.pkg.github.com/KIT-IAI-PROOF</url>
         </repository>
     </repositories>
 
     <distributionManagement>
         <repository>
-            <id>iai-artifactory</id>
-            <name>iai-artifactory</name>
-            <url>https://iai-artifactory.iai.kit.edu/artifactory/webis-common</url>
+            <id>github-proof</id>
+            <url>https://maven.pkg.github.com/KIT-IAI-PROOF/proof-orchestrator</url>
         </repository>
     </distributionManagement>
 
