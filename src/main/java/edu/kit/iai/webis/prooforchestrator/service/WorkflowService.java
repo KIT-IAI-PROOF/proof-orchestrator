@@ -1,13 +1,13 @@
 package edu.kit.iai.webis.prooforchestrator.service;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 import org.springframework.stereotype.Service;
 
-import edu.kit.iai.webis.prooforchestrator.config.OrchestrationConfig;
 import edu.kit.iai.webis.prooforchestrator.container.BlockContainer;
 import edu.kit.iai.webis.prooforchestrator.exception.ElementCreationException;
 import edu.kit.iai.webis.prooforchestrator.exception.SetupException;
@@ -23,6 +23,7 @@ import edu.kit.iai.webis.proofutils.helper.NameHelper;
 import edu.kit.iai.webis.proofutils.io.MQSyncProducer;
 import edu.kit.iai.webis.proofutils.io.MQValueProducer;
 import edu.kit.iai.webis.proofutils.message.MessageType;
+import edu.kit.iai.webis.proofutils.message.NotifyMessage;
 import edu.kit.iai.webis.proofutils.message.SyncMessage;
 import edu.kit.iai.webis.proofutils.message.ValueMessage;
 import edu.kit.iai.webis.proofutils.model.CommunicationType;
@@ -81,12 +82,12 @@ public class WorkflowService {
     /**
      * set the new status ({@link SimulationStatus}) for the simulation
      *
-     * @param ececutionStatus the new status of the workflow simulation
+     * @param executionStatus the new status of the workflow simulation
      */
-    public void setSimulationStatus(SimulationStatus ececutionStatus) {
-        LoggingHelper.debug().log("SET WFS STATUS from %s to %s ... ", this.simulationStatus, ececutionStatus);
-        this.simulationStatus = ececutionStatus;
-        this.configManagerService.saveExecutionStatus(this.executionId, ececutionStatus);
+    public void setSimulationStatus(SimulationStatus executionStatus) {
+        LoggingHelper.debug().log("SET WFS STATUS from %s to %s ... ", this.simulationStatus, executionStatus);
+        this.simulationStatus = executionStatus;
+        this.configManagerService.saveExecutionStatus(this.executionId, executionStatus);
     }
 
 
@@ -155,6 +156,9 @@ public class WorkflowService {
                 startable = false;
             }
         }
+        if( startable && this.statusHelper.areAllStatus(SimulationStatus.VALUES_SET ) ) {
+			return true;
+		}
         return startable;
     }
 
@@ -176,6 +180,7 @@ public class WorkflowService {
      * set the next step (increase the CommunicationPoint number) for all blocks
      */
     public void prepareNextStepForAllBlocks() {
+    	System.out.println("\nWFS:: preparing next step for all blocks\n");
         for (BlockContainer blockContainer : this.blockContainerMap.values()) {
             this.nextStep(blockContainer);
         }
@@ -185,7 +190,7 @@ public class WorkflowService {
         // process only, if the blockContainer has an allowed status
     	LoggingHelper.trace().log("CP=%d, Status=%s", this.currentCommunicationPoint, blockContainer.getStatus() );
         switch (blockContainer.getStatus()) {
-	        case EXECUTION_STEP_FINISHED, READY, CREATED, INITIALIZED, WAITING -> {
+	        case EXECUTION_STEP_FINISHED, READY, CREATED, INITIALIZED, WAITING, VALUES_SET -> {
 				blockContainer.setSimulationCommunicationPoint(this.currentCommunicationPoint);
 				this.statusHelper.setBlockStatus(blockContainer, SimulationStatus.READY);
 			}
@@ -204,7 +209,9 @@ public class WorkflowService {
     	for (BlockContainer blockContainer : this.blockContainerMap.values()) {
     		if( blockContainer.getStatus() == SimulationStatus.RETRY ) {
     			blockContainer.setSimulationCommunicationPoint(this.currentCommunicationPoint - 1);  // CP was increased last SYNC
-//    			this.statusHelper.setBlockStatus(blockContainer, SimulationStatus.READY);
+    	    	LoggingHelper.debug().log("BlockContainer %d: Status=%s, CP=%d (reduced)", (this.currentCommunicationPoint - 1), blockContainer.getStatus(), blockContainer.getIndex() );
+
+    			//this.statusHelper.setBlockStatus(blockContainer, SimulationStatus.READY);sonst kann kein SYNC gesendet werden
     		}
     	}
     }
@@ -216,10 +223,10 @@ public class WorkflowService {
      * @param syncMessage
      * @return true, if the simulation needs to be ended, false, otherwise
      */
-    private boolean checkSimulationEndNeeded(final MQSyncProducer syncProducer,
+    private boolean checkSimulationEndReached(final MQSyncProducer syncProducer,
     		final SimulationPhase simulationPhase,
     		final SyncMessage syncMessage)
-    {
+    {// TODO: switch-Case ...
         // for all simulation phases except FINALIZE and SHUTDOWN:  FINALIZE, when end point is reached
         if( simulationPhase != SimulationPhase.FINALIZE && simulationPhase != SimulationPhase.SHUTDOWN ) {
         	if( this.currentCommunicationPoint >= this.maxBlockEndPoint || this.currentCommunicationPoint >= this.endPoint ) {
@@ -262,6 +269,7 @@ public class WorkflowService {
      * Send SYNC Message to all {@link BlockContainer}s
      *
      * @param syncProducer the producer (sender) of a sync message
+     * @param simulationPhase the simulation phase
      */
     public void sendSyncMessage(final MQSyncProducer syncProducer, final SimulationPhase simulationPhase) {
         LoggingHelper.trace().log("  (Phase: " + simulationPhase + ")  CURRENT CP=%d", this.currentCommunicationPoint);
@@ -271,8 +279,8 @@ public class WorkflowService {
                 .communicationPoint(this.currentCommunicationPoint)
                 .build();
 
-        if( this.checkSimulationEndNeeded( syncProducer, simulationPhase, syncMessage)) {
-        	LoggingHelper.debug().log("simulation end needed!");
+        if( this.checkSimulationEndReached( syncProducer, simulationPhase, syncMessage)) {
+        	LoggingHelper.debug().log("simulation end reached!");
 			return;
 		}
 
@@ -283,78 +291,55 @@ public class WorkflowService {
         	&& this.statusHelper.isAnyStatus(SimulationStatus.RETRY) )
 		{
         	System.out.println("---------------------- sendSyncMessage (2) ---------------------------");
-        	if( this.statusHelper.isAnyStatus(SimulationStatus.RETRY) ){
-        		this.blockContainerMap.values().forEach((final var blockContainer) -> {
-        			if( blockContainer.getStatus() == SimulationStatus.RETRY ) {
-        				LoggingHelper.debug().log("--------> WFS::sendSyncMessage(RETRY):   Block %d:  %s ... CP=%d.  & setting " +
-        						"Status to WAITING ",
-        						blockContainer.getIndex(), StringTemplates.EXECUTING_STEP_TACT, this.currentCommunicationPoint);
-        				this.statusHelper.setBlockStatus(blockContainer, SimulationStatus.WAITING);
-        				syncMessage.setCommunicationPoint(this.currentCommunicationPoint);  // send the same CP as before
-        				this.buildAndSendSyncMessage(syncProducer, blockContainer, simulationPhase, syncMessage);
-        			}
-        		});
-        		return;
-        	}
+        	this.blockContainerMap.values().forEach((final var blockContainer) -> {
+        		if( blockContainer.getStatus() == SimulationStatus.RETRY ) {
+        			LoggingHelper.debug().log("--------> WFS::sendSyncMessage(RETRY):   Block %d:  %s ... CP=%d.  & setting " +
+        					"Status to WAITING ", blockContainer.getIndex(), StringTemplates.EXECUTING_STEP_TACT, this.currentCommunicationPoint);
+        			this.statusHelper.setBlockStatus(blockContainer, SimulationStatus.WAITING);
+        			syncMessage.setCommunicationPoint(this.currentCommunicationPoint);  // send the same CP as before
+        			this.buildAndSendSyncMessage(syncProducer, blockContainer, simulationPhase, syncMessage);
+        		}
+        	});
+        	return;
 		}
 
+		// increase the current communication point, number '0' is used for block initialization
+		if( simulationPhase != SimulationPhase.INIT ) {
+			this.currentCommunicationPoint++;
+			LoggingHelper.debug().messageColor(Colors.ANSI_RED_BOLD).log("sendSyncMessage():: currentCommunicationPoint increased to %d",
+					this.currentCommunicationPoint);
+			// Store the communication point for the execution in the DB.
+			if (this.currentCommunicationPoint <= this.endPoint) {
+				this.configManagerService.saveCommunicationPoint(this.executionId, this.currentCommunicationPoint);
+			}
+			else {
+				LoggingHelper.debug().messageColor(Colors.ANSI_RED_BOLD).log("sendSyncMessage():: currentCommunicationPoint not increased due to warnings or errors (see above) ");
+			}
+		}
 
-        // standard simulation step: EXECUTE
+		syncMessage.setCommunicationPoint(this.currentCommunicationPoint);
 
-//        switch (this.simulationStrategy) {
-//			case WAIT_AND_CONTINUE, IGNORE -> {
-//				this.blockContainerMap.values().forEach((final var blockContainer) -> {
-//					LoggingHelper.trace().log("--------> WFS::sendSyncMessage():   Block %d:  %s ... CP=%d.  & setting " +
-//							"Status to WAITING ",
-//							blockContainer.getIndex(), StringTemplates.EXECUTING_STEP_TACT, this.currentCommunicationPoint);
-//
-//					this.statusHelper.setBlockStatus(blockContainer, SimulationStatus.WAITING);
-//					this.buildAndSendSyncMessage(syncProducer, blockContainer, simulationPhase, syncMessage);
-//				});
-//			}
-//			case WAIT_AND_RETRY -> {
-//				}
-//				else { // do the same as with WAIT_AND_CONTINUE & IGNORE
-//					this.blockContainerMap.values().forEach((final var blockContainer) -> {
-//						if( blockContainer.getStatus() == SimulationStatus.RETRY ) {
-//							LoggingHelper.debug().log("--------> WFS::sendSyncMessage(RETRY):   Block %d:  %s ... CP=%d.  & setting " +
-//									"Status to WAITING ",
-//									blockContainer.getIndex(), StringTemplates.EXECUTING_STEP_TACT, this.currentCommunicationPoint);
-//							this.statusHelper.setBlockStatus(blockContainer, SimulationStatus.WAITING);
-//						}
-//						this.buildAndSendSyncMessage(syncProducer, blockContainer, simulationPhase, syncMessage);
-//					});
-//				}
-//			}
-////            case IGNORE -> {
-////            }
-//            default -> throw new IllegalArgumentException("Unexpected value: " + this.simulationStrategy);
-
-            // always, if nor RETRY:
+        final List<String> warnings = new ArrayList<String>();
             this.blockContainerMap.values().forEach((final var blockContainer) -> {
             	LoggingHelper.debug().log("--------> WFS::sendSyncMessage():   Block %d:  %s ... CP=%d.  & setting " +
-            			"Status to WAITING    ==> for Phase: %s",
-            			blockContainer.getIndex(), StringTemplates.EXECUTING_STEP_TACT, this.currentCommunicationPoint, simulationPhase);
+            			"Status (from %s) to WAITING    ==> for Phase: %s",
+            			blockContainer.getIndex(), StringTemplates.EXECUTING_STEP_TACT, this.currentCommunicationPoint, blockContainer.getStatus(), simulationPhase);
             	/**
             	 * If blockContainer has the status SimulationStatus.READY, it is prepared for next simulation step (see nextStep())
             	 */
-            	if( blockContainer.getStatus() == SimulationStatus.READY ) {
+            	if( blockContainer.getStatus() == SimulationStatus.READY || blockContainer.getStatus() == SimulationStatus.INITIALIZED ) {
 					this.statusHelper.setBlockStatus(blockContainer, SimulationStatus.WAITING);
 					this.buildAndSendSyncMessage(syncProducer, blockContainer, simulationPhase, syncMessage);
 				}
+            	else {
+            		warnings.add("sendSyncMessage():: SimulationStatus of BlockContainer '%d' is not READY (=> %s)".formatted(blockContainer.getIndex(), blockContainer.getStatus()));
+            	}
             });
 
+        warnings.forEach(w -> {
+        	LoggingHelper.warn().messageColor(Colors.ANSI_RED_BOLD).log(w);
+        });
 
-        // increase the current communication point, number '0' is used for block initialization
-        if( simulationPhase != SimulationPhase.INIT ) {
-			this.currentCommunicationPoint++;
-		}
-        LoggingHelper.debug().messageColor(Colors.ANSI_RED_BOLD).log("sendSyncMessage():: currentCommunicationPoint increased to %d",
-                this.currentCommunicationPoint);
-        // Store the communication point for the execution in the DB.
-        if (this.currentCommunicationPoint <= this.endPoint) {
-            this.configManagerService.saveCommunicationPoint(this.executionId, this.currentCommunicationPoint);
-        }
     }
 
     private void buildAndSendSyncMessage(final MQSyncProducer syncProducer,
@@ -374,46 +359,63 @@ public class WorkflowService {
 
 
     /**
-     * set all static inputs and start the blocks
+     * set all static inputs for the start of the blocks and return a list of {@link NotifyMessage}s for all blocks that do not have static inputs
      *
      * @param mqValueProducer     the producer that sends a value message
      *                            ({@link edu.kit.iai.webis.proofutils.message.ValueMessage}) to the queue
-     * @param orchestrationConfig the config that provides the mandatory information about a dry run of the workflow
-     *                            (i.e. run on the cluster or not)
-     * @param kubernetesService   the {@link KubernetesService} that starts the block on the cluster
+     *
+     * @return List of {@link NotifyMessage}s for all blocks that have no static inputs
      */
-    public void setStaticInputsAndStartBlocks(MQValueProducer mqValueProducer,
-                                              OrchestrationConfig orchestrationConfig,
-                                              KubernetesService kubernetesService) {
-        this.blockContainerMap.values().forEach((final BlockContainer blockContainer) -> {
-            final ValueMessage valueMessage = (ValueMessage) MessageBuilder.init(MessageType.VALUE)
-                    .localBlockId(blockContainer.getIndex())
-                    .globalBlockId(blockContainer.getGlobalId())
-                    .workflowId(this.workflow.getId())
-                    .simulationPhase(SimulationPhase.INIT)
-                    .communicationPoint(0)
-                    .build();
-            final Map<String, String> blockStaticInputValues = BlockHelper.getStaticInputValues(blockContainer.getBlock(), this.execution.getAppliedInputs());
+    public List<NotifyMessage> setStaticInputs(MQValueProducer mqValueProducer) {
+    	List<NotifyMessage> blockMessages = new ArrayList<NotifyMessage>(this.blockContainerMap.size());
+    	final Map<String, String> appliedInputs = this.execution.getAppliedInputs();
 
+        this.blockContainerMap.values().forEach((final BlockContainer blockContainer) -> {
+            final Map<String, String> blockStaticInputValues = BlockHelper.getStaticInputValues(blockContainer.getBlock(), appliedInputs);
+
+            LoggingHelper.debug().messageColor(Colors.ANSI_GREEN_BOLD).log("Setting INIT values for Block %d", blockContainer.getIndex());
             if (blockStaticInputValues.size() > 0) {
                 // Sending INIT data
+            	final ValueMessage valueMessage = (ValueMessage) MessageBuilder.init(MessageType.VALUE)
+            			.localBlockId(blockContainer.getIndex())
+            			.globalBlockId(blockContainer.getGlobalId())
+            			.workflowId(this.workflow.getId())
+            			.simulationPhase(SimulationPhase.INIT)
+            			.communicationPoint(0)
+            			.build();
                 valueMessage.setData(blockStaticInputValues);
                 final var staticInputsQueueName = NameHelper.getStaticInputsQueueName(this.executionId, blockContainer.getBlock());
                 LoggingHelper.debug().messageColor(Colors.ANSI_RED).log("QUEUE-Name: " + staticInputsQueueName);
-                LoggingHelper.debug().messageColor(Colors.ANSI_RED).log("VALUE-Message: " + valueMessage);
                 mqValueProducer.sendToQueue(staticInputsQueueName, valueMessage);
-
+                LoggingHelper.debug().messageColor(Colors.ANSI_RED).log("VALUE-Message sent: " + valueMessage);
+                blockContainer.setStatus(SimulationStatus.WAITING);
             } else {
                 LoggingHelper.warn().log("WFS:: There are no static inputs for block '" + blockContainer.getIndex() + "'!");
+                final NotifyMessage notifyMessage = (NotifyMessage) MessageBuilder.init(MessageType.NOTIFY)
+                		.localBlockId(blockContainer.getIndex())
+                		.globalBlockId(blockContainer.getGlobalId())
+                		.workflowId(this.workflow.getId())
+                		.simulationPhase(SimulationPhase.INIT)
+                		.communicationPoint(0)
+                		.blockStatus(SimulationStatus.VALUES_SET)
+                		.build();
+                blockMessages.add(notifyMessage);
                 return;
             }
-
-            // TODO here??  => if not: rename method, too
-            // Check dry run and start container
-            if (kubernetesService != null) {
-                kubernetesService.startBlock(blockContainer, this.executionId);
-            }
         });
+        return blockMessages;
+    }
+
+    /**
+     * Start the Kubernetes pods
+     * @param kubernetesService the proof kubernetes service
+     */
+    public void startKubernetesPods(KubernetesService kubernetesService) {
+    	this.blockContainerMap.values().forEach((final BlockContainer blockContainer) -> {
+    		if (kubernetesService != null) {
+    			kubernetesService.startBlock(blockContainer, this.executionId);
+    		}
+    	});
     }
 
 
@@ -452,7 +454,9 @@ public class WorkflowService {
             System.out.println("==========================================================================");
         }
 
-        final var blockContainers = this.workflow.getBlocks().values().parallelStream().map((final Block block) -> {
+        this.blockContainerMap.clear();
+
+        final List<BlockContainer> blockContainers = this.workflow.getBlocks().values().parallelStream().map((final Block block) -> {
             try {
                 if (BlockHelper.checkIfAllRequiredInputsHaveValues(block, appliedInputs)) {
                     BlockContainer blockContainer = new BlockContainer();
@@ -496,8 +500,12 @@ public class WorkflowService {
             }
 
         }).toList();
-        this.simulationStatus = SimulationStatus.CREATED;
-        this.statusHelper.setBlockContainers(blockContainers);
+        List<BlockContainer> sortedContainers = new ArrayList<BlockContainer>();
+        blockContainers.forEach(b -> sortedContainers.add(b));
+        Collections.sort(sortedContainers, (a, b) -> a.getIndex() < b.getIndex() ? -1 : a.getIndex() == b.getIndex() ? 0 : 1);
+        this.simulationStatus = SimulationStatus.UNKNOWN;
+        LoggingHelper.trace().log("Block container list: " + sortedContainers);
+        this.statusHelper.setBlockContainers(sortedContainers);
 
         try {
             this.connectInputsAndOutputs();

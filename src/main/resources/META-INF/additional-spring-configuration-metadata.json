@@ -6,6 +6,11 @@
       "description": "Description for spring.application.buildAt."
     },
     {
+      "name": "timezone",
+      "type": "java.lang.String",
+      "description": "Description for timezone."
+    },
+    {
       "name": "spring.application.version",
       "type": "java.lang.String",
       "description": "Description for spring.application.version."

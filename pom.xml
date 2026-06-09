@@ -12,7 +12,7 @@
 
     <groupId>edu.kit.iai.webis</groupId>
     <artifactId>proof-orchestrator</artifactId>
-    <version>4.8.6-local</version>
+    <version>4.8.11-dev</version>
     <name>PROOF Orchestrator</name>
     <description>PROOF Orchestrator</description>
     <packaging>jar</packaging>
@@ -25,8 +25,8 @@
         <gitHost>gitlab.kit.edu/</gitHost>
         <gitUserId>kit/iai/webis/proof2</gitUserId>
         <gitRepoId>proof-orchestrator</gitRepoId>
-        <model.version>3.3.0</model.version>
-        <config.manager.version>1.4.10</config.manager.version>
+        <model.version>3.4.1</model.version>
+        <config.manager.version>1.4.18</config.manager.version>
     </properties>
 
     <dependencies>
@@ -54,7 +54,7 @@
         <dependency>
             <groupId>edu.kit.iai.webis</groupId>
             <artifactId>proof-utils</artifactId>
-	    	<version>4.4.7</version>
+	    	<version>4.4.14-dev</version>
         </dependency>
 		<!-- Spring starters -->
         <dependency>

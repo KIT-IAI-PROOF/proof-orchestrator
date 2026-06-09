@@ -87,11 +87,7 @@ public class DockerHelper {
      * @return the workerLoggingDir without placeholder
      */
     private String getWorkerLogDir(String executionId) {
-        if (this.workerLoggingDir.contains(CommonStringTemplates.EXECUTION_ID_PLACEHOLDER)) {
-            String workerLogDir = this.workerLoggingDir.replace(CommonStringTemplates.EXECUTION_ID_PLACEHOLDER, executionId);
-            this.workerLoggingDir = workerLogDir;
-        }
-        return this.workerLoggingDir;
+        return this.workerLoggingDir.replace(CommonStringTemplates.EXECUTION_ID_PLACEHOLDER, executionId);
     }
 
 	/**
@@ -101,7 +97,7 @@ public class DockerHelper {
 	 * @param executionId the execution id to refer to
 	 * @return the environment variables as a String list
 	 */
-    public List<String> getWorkerEnvVars(Workflow workflow, Block block, String executionId) {
+    public List<String> getWorkerEnvVars(Workflow workflow, Block block, String executionId, String workerLogDir) {
         List<String> envVars = new ArrayList<>();
         envVars.add("proof.worker.workflow.uuid=" + workflow.getId());
         envVars.add("proof.worker.block.uuid=" + block.getId());
@@ -114,7 +110,6 @@ public class DockerHelper {
         envVars.add("proof.attachments.directory="+this.orchestrationConfig.getAttachmentsDir());
         envVars.add("proof.userdata.directory="+this.orchestrationConfig.getUserdataDir());
         envVars.add("proof.worker.logging.logLevel=" + this.workerLoggingLevel);
-        String workerLogDir = this.getWorkerLogDir(executionId);
         envVars.add("proof.worker.logging.directory=" + workerLogDir);
         envVars.add("app.name=" + block.getId());
         return envVars;
@@ -188,7 +183,7 @@ public class DockerHelper {
                     			.withNetworkMode("proof")
                     			.withBinds(pyFiles)
                     			.withExtraHosts("host.docker.internal:host-gateway");
-                        List<String> envVars = this.getWorkerEnvVars(workflow, block, executionID);
+                        List<String> envVars = this.getWorkerEnvVars(workflow, block, executionID, workerLogDir);
                         // Log the equivalent Docker CLI command for debugging
                         StringBuilder dockerCmd = new StringBuilder("docker run -d");
                         dockerCmd.append(" --name ").append(name);

@@ -28,7 +28,7 @@ public class MQNotifyHandler {
      */
     public void handleMessage(final NotifyMessage message) {
 
-        LoggingHelper.debug().log("==== W ====> Notify Message (BlockStatus=%s) received from Block %s (%d)    " +
+        LoggingHelper.debug().log("==== W ====> Notify Message (SimulationStatus=%s) received from Block %s (%d)    " +
                 "(CP=%d)\n",
         		message.getBlockStatus(), message.getGlobalBlockId(), message.getLocalBlockId(),
                 message.getCommunicationPoint());
@@ -40,6 +40,11 @@ public class MQNotifyHandler {
             }
             default -> {}
         }
-        this.orchestrationService.setBlockStatus(message);
+        try {
+            this.orchestrationService.setBlockStatus(message);
+        } catch (Exception e) {
+            LoggingHelper.error().messageColor(Colors.ANSI_RED)
+            .log("Error while processing NotifyMessage from block %d (%s): %s\nMessage:".formatted( message.getLocalBlockId(), message.getGlobalBlockId(), e.getMessage(), message));
+        }
     }
 }

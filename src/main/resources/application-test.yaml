@@ -53,6 +53,8 @@ proof:
     k8s:
       namespace: webis
     processing: DOCKER
+    shutdown:
+      timeout: 2
     loglevel: debug
   worker:
     loglevel: debug

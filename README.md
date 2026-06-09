@@ -10,3 +10,11 @@
 <p align="center">
 <a href="https://iai-wiki.iai.kit.edu/display/IKTP/PROOF+Orchestrator">See documentation</a>.
 </p>
+
+## Github-Mapping
+Table for mappings gitlab-version <--> github-version
+
+| gitlab | github |
+| ------ | ------ |
+| 4.8.10 | 1.2.0  |
+|        |        |

@@ -48,8 +48,13 @@ public class OrchestrationConfig {
     /**
      * The processing environment (LOCAL, DOCKER, KUBERNETES)
      */
-    @Value("${proof.orchestration.processing:#{null}}")
+    @Value("${proof.orchestration.processing:DOCKER}")
     private String processingEnvironment;
+    /**
+     * The shutdown timeout for the workers in seconds, default is 2 seconds
+     */
+    @Value("${proof.orchestration.shutdown.timeout:2}")
+    private String shutdownTimeout;
     /**
      * the orchestrator logging level
      */
@@ -108,6 +113,8 @@ public class OrchestrationConfig {
 	public String getProcessingEnvironment() {
 		return this.processingEnvironment;
 	}
+
+    public String getShutdownTimeout() { return this.shutdownTimeout; }
 
 	public String getLoggingLevel() {
 		return this.loggingLevel;
