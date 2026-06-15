@@ -260,7 +260,8 @@ public class OrchestrationService {
 					}
             	}
 				case VALUES_SET -> {
-					if (this.statusHelper.areAllStatus(SimulationStatus.VALUES_SET))
+					if (this.statusHelper.areAllStatus(SimulationStatus.VALUES_SET)
+							&& this.workflowService.getSimulationStatus() == SimulationStatus.CREATED)
 					{
 						LoggingHelper.info().log(LoggingHelper.printStarBordered("All Blocks got their INIT values, try to start Workflow with Phase INIT"));
 						this.runWorkflow(notifyMessage.getExecutionId());
