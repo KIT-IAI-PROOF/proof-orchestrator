@@ -368,13 +368,13 @@ public class WorkflowService {
      */
     public List<NotifyMessage> setStaticInputs(MQValueProducer mqValueProducer) {
     	List<NotifyMessage> blockMessages = new ArrayList<NotifyMessage>(this.blockContainerMap.size());
-    	final Map<String, String> appliedInputs = this.execution.getAppliedInputs();
+    	final Map<String, String> inputParameters = this.execution.getInputParameters();
 
         this.blockContainerMap.values().forEach((final BlockContainer blockContainer) -> {
-            final Map<String, String> blockStaticInputValues = BlockHelper.getStaticInputValues(blockContainer.getBlock(), appliedInputs);
+            final Map<String, String> blockStaticInputParameters = BlockHelper.getInputParameters(blockContainer.getBlock(), inputParameters);
 
             LoggingHelper.debug().messageColor(Colors.ANSI_GREEN_BOLD).log("Setting INIT values for Block %d", blockContainer.getIndex());
-            if (blockStaticInputValues.size() > 0) {
+            if (blockStaticInputParameters.size() > 0) {
                 // Sending INIT data
             	final ValueMessage valueMessage = (ValueMessage) MessageBuilder.init(MessageType.VALUE)
             			.localBlockId(blockContainer.getIndex())
@@ -382,8 +382,8 @@ public class WorkflowService {
             			.workflowId(this.workflow.getId())
             			.simulationPhase(SimulationPhase.INIT)
             			.communicationPoint(0)
+            			.data(blockStaticInputParameters)
             			.build();
-                valueMessage.setData(blockStaticInputValues);
                 final var staticInputsQueueName = NameHelper.getStaticInputsQueueName(this.executionId, blockContainer.getBlock());
                 LoggingHelper.debug().messageColor(Colors.ANSI_RED).log("QUEUE-Name: " + staticInputsQueueName);
                 mqValueProducer.sendToQueue(staticInputsQueueName, valueMessage);
@@ -447,18 +447,16 @@ public class WorkflowService {
      * @return a {@link BlockContainer} instance
      */
     private void createBlockContainers() throws ElementCreationException {
-        final Map<String, String> appliedInputs = this.execution.getAppliedInputs();
+        final Map<String, String> inputParameters = this.execution.getInputParameters();
         if (LoggingHelper.isLevelDebugOrTrace()) {
-            System.out.println("==========================================================================");
-            System.out.println("Given AppInputs:\n" + appliedInputs);
-            System.out.println("==========================================================================");
+        	StringTemplates.printStarBordered(inputParameters.toString());
         }
 
         this.blockContainerMap.clear();
 
         final List<BlockContainer> blockContainers = this.workflow.getBlocks().values().parallelStream().map((final Block block) -> {
             try {
-                if (BlockHelper.checkIfAllRequiredInputsHaveValues(block, appliedInputs)) {
+                if (BlockHelper.checkIfAllRequiredInputsHaveValues(block, inputParameters)) {
                     BlockContainer blockContainer = new BlockContainer();
                     // TODO TEST: only for test purposes:  override the random uuid with a specialized one:
 //        			blockContainer.setGlobalId("BC_uuid__" + block.getId() + "-" + block.getIndex());

@@ -14,7 +14,6 @@ import org.springframework.amqp.rabbit.listener.adapter.MessageListenerAdapter;
 import org.springframework.amqp.support.converter.Jackson2JsonMessageConverter;
 import org.springframework.stereotype.Service;
 
-import edu.kit.iai.webis.prooforchestrator.config.Configuration;
 import edu.kit.iai.webis.prooforchestrator.config.OrchestrationConfig;
 import edu.kit.iai.webis.prooforchestrator.exception.ConcurrentWorkflowException;
 import edu.kit.iai.webis.prooforchestrator.exception.NotFoundException;
@@ -89,7 +88,7 @@ public class OrchestrationService {
      * @param configuration Configuration object for orchestration params
      * @param executionId   UUID of the execution process for a workflow to get from config server
      */
-    public Execution prepareWorkflow(final Configuration configuration, final String executionId) throws IllegalArgumentException {
+    public Execution prepareWorkflow(final String executionId) throws IllegalArgumentException {
         try {
         	this.execution = this.configManagerService.getExecution(executionId);
             SimulationStatus executionStatus = this.execution.getStatus();
