@@ -79,25 +79,25 @@ public class BlockHelper {
      * check whether all required inputs have values assigned
      *
      * @param block                 the block containing the inputs
-     * @param inputParametersForBlock the map of input parameters
+     * @param execParametersForBlock the map of execution parameters
      * @return true, if there are no required inputs or all required inputs have values assigned
      */
-    public static boolean checkIfAllRequiredInputsHaveValues(Block block, Map<String, String> inputParametersForBlock) {
+    public static boolean checkIfAllRequiredInputsHaveValues(Block block, Map<String, String> execParametersForBlock) {
         List<Input> requiredStaticInputs = getRequiredStaticInputs(block);
-        return requiredStaticInputs == null || requiredStaticInputs.stream().allMatch((final Input ii) -> inputParametersForBlock.containsKey(ii.getId()));
+        return requiredStaticInputs == null || requiredStaticInputs.stream().allMatch((final Input ii) -> execParametersForBlock.containsKey(ii.getId()));
     }
 
     /**
      * Get all static input values of a block
      *
      * @param block                 the block containing the inputs
-     * @param inputParameters the map of input parameters
+     * @param execParameters the map of execution parameters
      * @return the map containing input values (key=name of the value, value=the value of the input)
      */
-    public static Map<String, String> getInputParameters(Block block, Map<String, String> inputParameters) {
+    public static Map<String, String> getExecParameters(Block block, Map<String, String> execParameters) {
         Map<String, String> valueMappings = new HashMap<String, String>();
         block.getInputs().values().forEach(input -> {
-            String value = inputParameters.get(input.getId());
+            String value = execParameters.get(input.getId());
             if (value != null) {
 				valueMappings.put(input.getName(), value);
 			}
