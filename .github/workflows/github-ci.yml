@@ -1,0 +1,23 @@
+name: PROOF Orchestrator CI/CD
+on:
+  push:
+    branches:
+      - test_ci
+    tags:
+      - 'v*'
+env:
+  JIB: true
+  DOCKER_IMAGE_NAME: 'ghcr.io/kit-iai-proof/proof-orchestrator'
+jobs:
+  build:
+    if: github.ref_type != 'tag' && !startsWith(github.event.head_commit.message, 'WIP')
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/kit-iai-proof/ci-build-jdk25-maven-node24
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 25
+          cache: maven
