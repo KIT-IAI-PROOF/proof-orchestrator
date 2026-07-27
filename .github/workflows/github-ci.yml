@@ -5,7 +5,8 @@ on:
       - test_ci
     tags:
       - 'v*'
-
+env:
+  GITHUB_TOKEN: ${{ secrets.PROOF_PACKAGE_CI_TOKEN }}
 jobs:
   build:
     if: github.ref_type != 'tag' && !startsWith(github.event.head_commit.message, 'WIP')
@@ -18,4 +19,6 @@ jobs:
           distribution: 'temurin'
           java-version: '25'
           cache: 'maven'
+          server-id: 'github-proof'
+          server-password: GITHUB_TOKEN
       - run: mvn clean compile test
