@@ -20,5 +20,6 @@ jobs:
           java-version: '25'
           cache: 'maven'
           server-id: 'github-proof'
+          server-username: uuulf91
           server-password: GITHUB_TOKEN
       - run: mvn clean compile test
