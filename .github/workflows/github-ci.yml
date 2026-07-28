@@ -5,6 +5,9 @@ on:
       - test_ci
     tags:
       - 'v*'
+env:
+  GITHUB_TOKEN: ${{ secrets.PROOF_PACKAGE_CI_TOKEN }}
+
 jobs:
   build:
     if: github.ref_type != 'tag' && !startsWith(github.event.head_commit.message, 'WIP')
@@ -22,6 +25,5 @@ jobs:
           java-version: '25'
           cache: 'maven'
           server-id: 'github-proof'
-          server-username: uuulf91
-          server-password: ${{ secrets.PROOF_PACKAGE_CI_TOKEN }}
+          server-password: GITHUB_TOKEN
       - run: mvn clean compile test
