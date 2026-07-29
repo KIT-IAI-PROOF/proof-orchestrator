@@ -92,7 +92,9 @@ jobs:
           
           mvn \
             com.google.cloud.tools:jib-maven-plugin:3.4.6:build \
-            -Dimage=ghcr.io/${IMAGE_OWNER}/${{ github.event.repository.name }}:${VERSION}
+            -Dimage=ghcr.io/${IMAGE_OWNER}/${{ github.event.repository.name }}:${VERSION} \
+            -Djib.to.auth.username=${{ github.actor }} \
+            -Djib.to.auth.password=${{ secrets.GITHUB_TOKEN }}
 
       - name: Prepare post-deploy
         uses: actions/upload-artifact@v4
