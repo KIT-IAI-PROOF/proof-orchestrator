@@ -78,13 +78,18 @@ jobs:
       - name: Login to GHCR
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
 
+      # Necessary because GitHub Actions does not allow to use uppercase letters in the image name, but the repository owner may contain uppercase letters.
+      - name: Normalize image name
+        run: |
+          echo "IMAGE_OWNER=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_ENV"
+
       - name: Build and push image with Jib
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
           
           mvn \
             com.google.cloud.tools:jib-maven-plugin:3.4.6:build \
-            -Dimage=ghcr.io/${{ github.repository_owner }}/${{ github.event.repository.name }}:${{ github.ref_name }}
+            -Dimage=ghcr.io/${IMAGE_OWNER}/${{ github.event.repository.name }}:${VERSION}
 
       - name: Prepare post-deploy
         uses: actions/upload-artifact@v4
