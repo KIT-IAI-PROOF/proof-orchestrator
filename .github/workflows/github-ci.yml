@@ -71,7 +71,7 @@ jobs:
       #    restore-keys: ${{ runner.os }}-m2-
 
       - name: Verify version
-        run: check-mvn-git-project-version-match
+        run: ./ci-scripts/check-mvn-git-project-version-match
 
       - name: Login to GHCR
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
