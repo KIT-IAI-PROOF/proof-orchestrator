@@ -74,3 +74,18 @@ jobs:
 
       - name: Login to GHCR
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      - name: Build and push image with Jib
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          
+          mvn \
+            com.google.cloud.tools:jib-maven-plugin:3.4.6:build \
+            -Dimage=ghcr.io/${{ github.repository_owner }}/${{ github.event.repository.name }}:${{ github.ref_name }}
+
+      - name: Prepare post-deploy
+        uses: actions/upload-artifact@v4
+        with:
+          name: generated
+          path: generated/
+          retention-days: 1
