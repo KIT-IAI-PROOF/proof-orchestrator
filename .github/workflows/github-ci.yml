@@ -60,6 +60,7 @@ jobs:
         with:
           repository: KIT-IAI-PROOF/proof-ci-scripts
           path: ci-scripts
+          ref: main
           token: ${{ secrets.GITHUB_TOKEN }}
 
       #- name: Cache Maven packages
