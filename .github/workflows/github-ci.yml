@@ -96,6 +96,7 @@ jobs:
           VERSION="${GITHUB_REF_NAME#v}"
           
           mvn \
+            install \
             com.google.cloud.tools:jib-maven-plugin:3.4.6:build \
             -Dimage=ghcr.io/${IMAGE_OWNER}/${{ github.event.repository.name }}:${VERSION}
 
