@@ -156,6 +156,16 @@ jobs:
           node-version: 18
           registry-url: 'https://npm.pkg.github.com'
 
+      - name: Install dependencies without scripts
+        working-directory: generated/typescript
+        run: npm install --include=dev --ignore-scripts
+
+      - name: Debug typescript
+        working-directory: generated/typescript
+        run: |
+          npx tsc --version
+          npm ls typescript
+
       - name: List npm files
         working-directory: generated/typescript
         run: ls -la
