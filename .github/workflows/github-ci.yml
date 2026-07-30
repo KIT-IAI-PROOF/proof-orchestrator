@@ -116,6 +116,7 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           name: generated
+          path: generated/
 
       - name: Inspect files
         run: |
@@ -131,10 +132,8 @@ jobs:
           server-id: 'github-proof'
           server-password: GITHUB_TOKEN
 
-      - name: Change dir
-        run: cd generated/java
-
       - name: Run client deployment
+        working-directory: generated/java
         run: mvn clean deploy -f pom.xml
 
   post-deploy-npm:
