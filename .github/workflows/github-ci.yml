@@ -108,7 +108,7 @@ jobs:
           retention-days: 1
 
   post-deploy-maven:
-    if: github.ref_type == 'tag'
+    if: false #github.ref_type == 'tag'
     needs: deploy
     runs-on: ubuntu-latest
 
@@ -155,6 +155,18 @@ jobs:
         with:
           node-version: 18
           registry-url: 'https://npm.pkg.github.com'
+
+      - name: List npm files
+        working-directory: generated/typescript
+        run: ls -la
+
+      - name: Debug npm environment
+        working-directory: generated/typescript
+        run: |
+          node --version
+          npm --version
+          npm ls typescript || true
+          npx tsc --version
 
       - name: Publish npm package
         working-directory: generated/typescript
