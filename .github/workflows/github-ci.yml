@@ -117,6 +117,11 @@ jobs:
         with:
           name: generated
 
+      - name: Inspect files
+        run: |
+          pwd
+          ls -R
+
       - name: Setup java
         uses: actions/setup-java@v4
         with:
