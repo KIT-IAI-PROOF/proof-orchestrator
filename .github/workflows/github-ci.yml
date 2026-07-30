@@ -75,7 +75,7 @@ jobs:
       #    restore-keys: ${{ runner.os }}-m2-
 
       - name: Setup path for scripts
-        run: export PATH="$PWD/ci-scripts:$PATH"
+        run: echo "$GITHUB_WORKSPACE/ci-scripts" >> "$GITHUB_PATH"
 
       - name: Verify version
         run: ./ci-scripts/check-mvn-git-project-version-match
