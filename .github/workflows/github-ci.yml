@@ -134,7 +134,7 @@ jobs:
 
       - name: Run client deployment
         working-directory: generated/java
-        run: mvn clean deploy -f pom.xml
+        run: mvn clean deploy -DaltDeploymentRepository=https://maven.pkg.github.com/KIT-IAI-PROOF/proof-maven-packages -f pom.xml
 
   post-deploy-npm:
     if: github.ref_type == 'tag'
