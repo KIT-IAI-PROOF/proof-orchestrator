@@ -88,8 +88,8 @@ jobs:
         run: |
           echo "IMAGE_OWNER=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_ENV"
 
-      - name: Maven clean & compile
-        run: mvn clean compile
+      - name: Maven clean
+        run: mvn clean
 
       - name: Build and push image with Jib
         run: |
