@@ -160,18 +160,18 @@ jobs:
         working-directory: generated/typescript
         run: ls -la
 
-      - name: Debug npm environment
-        working-directory: generated/typescript
-        run: |
-          node --version
-          npm --version
-          npm ls typescript || true
-          npx tsc --version
+      #- name: Debug npm environment
+      #  working-directory: generated/typescript
+      #  run: |
+      #    node --version
+      #    npm --version
+      #    npm ls typescript || true
+      #    npx tsc --version
 
       - name: Publish npm package
         working-directory: generated/typescript
         run: | 
-          npm install
+          npm install --include=dev
           npm run build
           npm publish --access public
         env:
