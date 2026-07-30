@@ -141,7 +141,27 @@ jobs:
     needs: deploy
     runs-on: ubuntu-latest
 
+    permissions:
+      contents: read
+      packages: write
+
     steps:
       - uses: actions/download-artifact@v4
         with:
           name: generated
+          path: generated
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+          registry-url: 'https://npm.pkg.github.com'
+
+      - name: Publish npm package
+        working-directory: generated/typescript
+        run: | 
+          npm install
+          npm run build
+          npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
