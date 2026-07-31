@@ -1,10 +1,7 @@
 name: PROOF Orchestrator CI/CD
 on:
   push:
-    branches:
-      - test_ci
-    tags:
-      - 'v*'
+
 env:
   GITHUB_TOKEN: ${{ secrets.PROOF_PACKAGE_CI_TOKEN }}
 
@@ -20,13 +17,6 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
-      #- name: Cache Maven packages
-      #  uses: actions/cache@v4
-      #  with:
-      #    path: ~/.m2
-      #    key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
-      #    restore-keys: ${{ runner.os }}-m2-
 
       - uses: actions/setup-java@v4
         with:
@@ -65,7 +55,6 @@ jobs:
           path: ci-scripts
           ref: main
           token: ${{ secrets.GITHUB_TOKEN }}
-
 
       #- name: Cache Maven packages
       #  uses: actions/cache@v4
@@ -108,7 +97,7 @@ jobs:
           retention-days: 1
 
   post-deploy-maven:
-    if: false #github.ref_type == 'tag'
+    if: github.ref_type == 'tag'
     needs: deploy
     runs-on: ubuntu-latest
 
@@ -155,14 +144,6 @@ jobs:
         with:
           node-version: 18
           registry-url: 'https://npm.pkg.github.com'
-
-      #- name: Debug npm environment
-      #  working-directory: generated/typescript
-      #  run: |
-      #    node --version
-      #    npm --version
-      #    npm ls typescript || true
-      #    npx tsc --version
 
       - name: Publish npm package
         working-directory: generated/typescript
