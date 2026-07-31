@@ -1,0 +1,90 @@
+{
+  "id": "jaketest_123_block-thermal_Jianlei-initValue",
+  "name": "thermModel",
+  "description": "Calculates the new temperature based on the power loss",
+  "inputs": [
+    {
+      "name": "power_loss_therm",
+      "type": "float",
+      "stepId": 1,
+      "eventId": 1,
+      "communicationType": "STEPBASED",
+      "metadata": {}
+    },
+    {
+      "name": "T_ambient",
+      "type": "float",
+      "stepId": 0,
+      "eventId": 0,
+      "communicationType": "STEPBASED_STATIC",
+      "metadata": {}
+    },
+    {
+      "name": "c",
+      "type": "float",
+      "stepId": 0,
+      "eventId": 0,
+      "communicationType": "STEPBASED_STATIC",
+      "metadata": {}
+    },
+    {
+      "name": "m",
+      "type": "float",
+      "stepId": 0,
+      "eventId": 0,
+      "communicationType": "STEPBASED_STATIC",
+      "metadata": {}
+    }
+  ],
+  "outputs": [
+    {
+      "name": "T",
+      "type": "float",
+      "stepId": 1,
+      "eventId": 1,
+      "communicationType": "STEPBASED",
+      "metadata": {}
+    }
+  ],
+  "containerImage": "iai-artifactory.iai.kit.edu/docker-webis/proof-2/proof-standard:latest",
+  "communicationParadigm": "STEPBASED",
+  "programId": "progidjakeflowthermal_Jianlei-initValue",
+  "startParameters": {},
+  "eventLifeCycles": [],
+  "stepLifeCycles": [
+    {
+      "id": 0,
+      "type": "INIT",
+      "input": {
+        "type": "STDIO",
+        "parameters": {
+          "mapping": {
+            "T_ambient": "T_ambient",
+            "c": "c",
+            "m": "m"
+          }
+        }
+      }
+    },
+    {
+      "id": 1,
+      "type": "STEP",
+      "input": {
+        "type": "STDIO",
+        "parameters": {
+          "mapping": {
+            "power_loss_therm": "power_loss_therm"
+          }
+        }
+      },
+      "output": {
+        "type": "STDIO",
+        "parameters": {
+          "mapping": {
+            "T": "T"
+          }
+        }
+      }
+    }
+  ]
+}

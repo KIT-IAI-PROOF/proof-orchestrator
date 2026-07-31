@@ -1,0 +1,103 @@
+{
+  "id": "jaketest_123_block-elec_Jianlei-simple",
+  "name": "elecModel-simple",
+  "description": "Calculation of the Current through a resistance dependent on the temperature",
+  "inputs": [
+    {
+      "name": "T_ambient",
+      "type": "float",
+      "stepId": 0,
+      "eventId": 0,
+      "communicationType": "STEPBASED_STATIC",
+      "metadata": {}
+    },
+    {
+      "name": "T0",
+      "type": "float",
+      "stepId": 0,
+      "eventId": 0,
+      "communicationType": "STEPBASED_STATIC",
+      "metadata": {}
+    },
+    {
+      "name": "R0",
+      "type": "float",
+      "stepId": 0,
+      "eventId": 0,
+      "communicationType": "STEPBASED_STATIC",
+      "metadata": {}
+    },
+    {
+      "name": "alpha",
+      "type": "float",
+      "stepId": 0,
+      "eventId": 0,
+      "communicationType": "STEPBASED_STATIC",
+      "metadata": {}
+    },
+    {
+      "name": "U",
+      "type": "float",
+      "stepId": 0,
+      "eventId": 0,
+      "communicationType": "STEPBASED_STATIC",
+      "metadata": {}
+    },
+    {
+      "name": "tmax",
+      "type": "float",
+      "stepId": 0,
+      "eventId": 0,
+      "communicationType": "STEPBASED_STATIC",
+      "metadata": {}
+    }
+  ],
+  "outputs": [
+    {
+      "name": "power_loss_elec",
+      "type": "float",
+      "stepId": 1,
+      "eventId": 1,
+      "communicationType": "STEPBASED",
+      "metadata": {}
+    }
+  ],
+  "containerImage": "iai-artifactory.iai.kit.edu/docker-webis/proof-2/proof-standard:latest",
+  "communicationParadigm": "STEPBASED",
+  "programId": "progidjakeflowelec_Jianlei-simple",
+  "startParameters": {},
+  "eventLifeCycles": [],
+  "stepLifeCycles": [
+    {
+      "id": 0,
+      "type": "INIT",
+      "input": {
+        "type": "STDIO",
+        "parameters": {
+          "mapping": {
+            "T_ambient": "T_ambient",
+            "T0": "T0",
+            "R0": "R0",
+            "alpha": "alpha",
+            "U": "U",
+            "tmax": "tmax"
+          }
+        }
+      }
+    },
+    {
+      "id": 1,
+      "type": "STEP",
+      "output": {
+        "type": "STDIO",
+        "parameters": {
+          "mapping": {
+            "power_loss_elec": "power_loss_elec"
+          }
+        }
+      }
+    }
+  ],
+  "context": {},
+  "metadata": {}
+}

@@ -1,0 +1,52 @@
+{
+  "blocks": [
+    {
+      "localId": 0,
+      "globalId": "jaketest_123_block-elec_Jianlei-simple",
+      "blockMetadata": {
+        "layout": {
+          "position": {
+            "x": 10.0,
+            "y": 10.0
+          }
+        }
+      }
+    },
+    {
+      "localId": 1,
+      "globalId": "jaketest_123_block-thermal_Jianlei-simple",
+      "blockMetadata": {
+        "layout": {
+          "position": {
+            "x": 15.0,
+            "y": 15.0
+          }
+        }
+      }
+    }
+  ],
+  "connections": [
+    {
+      "inbound": {
+        "blockId": "0",
+        "portName": "power_loss_elec"
+      },
+      "outbound": {
+        "blockId": "1",
+        "portName": "power_loss_therm"
+      }
+    }
+  ],
+  "_class": "edu.kit.iai.webis.proofmodels.Workflow",
+  "id": "123-abc_Jianlei-simple",
+  "name": "jakeflowResistanceV2_Jianlei-simple",
+  "description": "simpeletestmodel-simple",
+  "communicationParadigm": "STEPBASED",
+  "stepBasedConfig": {
+    "start": 0,
+    "end": 0,
+    "duration": 10000,
+    "stepSizes": {}
+  },
+  "asyncAction": "IGNORE"
+}

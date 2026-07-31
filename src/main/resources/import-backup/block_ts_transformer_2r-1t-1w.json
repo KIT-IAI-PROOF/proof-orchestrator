@@ -1,0 +1,63 @@
+{
+  "id": "transfor-merc-4fbd-9adc-bd1a02r1t1w",
+  "name": "ts_transformer",
+  "description": "",
+  "inputs": [
+    {
+      "name": "input_1",
+      "type": "json",
+      "stepId": 1,
+      "eventId": 1,
+      "communicationType": "STEPBASED",
+      "metadata": {}
+    },
+    {
+      "name": "input_2",
+      "type": "json",
+      "stepId": 1,
+      "eventId": 1,
+      "communicationType": "STEPBASED",
+      "metadata": {}
+    }
+  ],
+  "outputs": [
+    {
+      "name": "output",
+      "type": "json",
+      "stepId": 1,
+      "eventId": 1,
+      "communicationType": "STEPBASED",
+      "metadata": {}
+    }
+  ],
+  "containerImage": "iai-artifactory.iai.kit.edu/docker-webis/proof-2/proof-standard:latest",
+  "communicationParadigm": "STEPBASED",
+  "programId": "transfor-merf-42e3-b76e-d02472r1t1w",
+  "startParameters": {},
+  "eventLifeCycles": [],
+  "stepLifeCycles": [
+    {
+      "id": 1,
+      "type": "STEP",
+      "input": {
+        "type": "STDIO",
+        "parameters": {
+          "mapping": {
+            "input_1": "input_1",
+            "input_2": "input_2"
+          }
+        }
+      },
+      "output": {
+        "type": "STDIO",
+        "parameters": {
+          "mapping": {
+            "output": "output"
+          }
+        }
+      }
+    }
+  ],
+  "context": {},
+  "metadata": {}
+}

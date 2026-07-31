@@ -1,0 +1,58 @@
+{
+  "id": "readerb0-364c-4fbd-9adc-bd1a02r1t1w1",
+  "name": "ts_reader",
+  "description": "",
+  "inputs": [
+    {
+      "name": "ts_reader_url_1",
+      "type": "string",
+      "stepId": 0,
+      "eventId": 0,
+      "communicationType": "STEPBASED_STATIC",
+      "metadata": {}
+    }
+  ],
+  "outputs": [
+    {
+      "name": "output",
+      "type": "json",
+      "stepId": 1,
+      "eventId": 1,
+      "communicationType": "STEPBASED",
+      "metadata": {}
+    }
+  ],
+  "containerImage": "iai-artifactory.iai.kit.edu/docker-webis/proof-2/proof-standard:latest",
+  "communicationParadigm": "STEPBASED",
+  "programId": "2r1t1w2a-4e1f-42e3-b76e-d024703dfd-1",
+  "startParameters": {},
+  "eventLifeCycles": [],
+  "stepLifeCycles": [
+    {
+      "id": 0,
+      "type": "INIT",
+      "input": {
+        "type": "STDIO",
+        "parameters": {
+          "mapping": {
+            "ts_reader_url_1": "ts_reader_url_1"
+          }
+        }
+      }
+    },
+    {
+      "id": 1,
+      "type": "STEP",
+      "output": {
+        "type": "STDIO",
+        "parameters": {
+          "mapping": {
+            "output": "output"
+          }
+        }
+      }
+    }
+  ],
+  "context": {},
+  "metadata": {}
+}

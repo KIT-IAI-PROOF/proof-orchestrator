@@ -1,0 +1,8 @@
+{
+  "id": "71eff62a-4e1f-42e3-b76e-d024703dfdbe",
+  "name": "json_reader",
+  "description": "Fetching json from url",
+  "tag": "test",
+  "runtime": "PYTHON",
+  "path": "import/json_reader.py"
+}

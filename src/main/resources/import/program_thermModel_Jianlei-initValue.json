@@ -1,0 +1,8 @@
+{
+  "id": "progidjakeflowthermal_Jianlei-initValue",
+  "name": "thermModel",
+  "description": "Calculates the new temperature based on the power loss",
+  "tag": "jaketest",
+  "runtime": "PYTHON",
+  "path": "import/thermModel_Jianlei-initValue.py"
+}

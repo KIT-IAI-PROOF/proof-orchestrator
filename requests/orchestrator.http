@@ -1,0 +1,19 @@
+### Start workflow
+
+POST {{proto}}{{host}}:{{port}}/v1/start?workflowId=Jianlei-Test-IO
+Content-Type: application/json
+
+{
+  "runtimeOptions": {
+    "override": false,
+    "manual": false
+  },
+  "appliedInputs": {
+    "reader_url": "https://elab.cloud.iai.kit.edu/ts/v1/metric/kit.webis.proof.Jianlei.io.reader",
+    "writer_url": "https://elab.cloud.iai.kit.edu/ts/v1/metric/kit.webis.proof.Jianlei.io.writer"
+  }
+}
+
+### Abort workflow
+
+DELETE {{proto}}{{host}}:{{port}}/v1/abort/?executionId=

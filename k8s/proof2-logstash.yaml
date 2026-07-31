@@ -1,0 +1,112 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: proof2-logstash-service
+  labels:
+    iai.kit.edu/app: proof2-logstash
+spec:
+  ports:
+    - name: "tcp"
+      port: 5000
+      targetPort: 5000
+  selector:
+    iai.kit.edu/app: proof2-logstash
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: proof2-logstash-ingress
+  annotations:
+    traefik.ingress.kubernetes.io/router.middlewares: traefik2-redirect-to-https@kubernetescrd
+  labels:
+    iai.kit.edu/app: proof2-elastic
+spec:
+  rules:
+    - host: proof2-logstash.cloud.iai.kit.edu
+      http:
+        paths:
+          - backend:
+              service:
+                name: proof2-logstash-service
+                port:
+                  number: 5000
+            path: /
+            pathType: Prefix
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: proof2-logstash
+  labels:
+    iai.kit.edu/app: proof2-logstash
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      iai.kit.edu/app: proof2-logstash
+  template:
+    metadata:
+      labels:
+        iai.kit.edu/app: proof2-logstash
+    spec:
+      containers:
+        - name: proof2-logstash
+          image: docker.elastic.co/logstash/logstash:7.17.6
+          ports:
+            - name: "tcp"
+              containerPort: 5000
+          env:
+            - name: ES_HOSTS
+              value: "https://proof2-elastic.cloud.iai.kit.edu:443"
+          volumeMounts:
+            - name: config-volume
+              mountPath: /usr/share/logstash/config
+            - name: pipeline-volume
+              mountPath: /usr/share/logstash/pipeline
+      volumes:
+        - name: config-volume
+          configMap:
+            name: proof2-logstash-config
+        - name: pipeline-volume
+          configMap:
+            name: proof2-logstash-pipeline
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: proof2-logstash-config
+  labels:
+    iai.kit.edu/app: proof2-logstash
+data:
+  logstash.yml: |
+    http.host: "0.0.0.0"
+    path.config: /usr/share/logstash/pipeline
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: proof2-logstash-pipeline
+  labels:
+    iai.kit.edu/app: proof2-logstash
+data:
+  logstash.conf: |
+    input {
+      http {
+        port => "5000"
+        type => syslog
+        codec => json
+      }
+    }
+    output {
+      if [logger_name] == "EventLogger" {
+        elasticsearch {
+          hosts => [ "${ES_HOSTS}" ]
+          index => "proof2-events"
+        }
+      } else {
+        elasticsearch {
+          hosts => [ "${ES_HOSTS}" ]
+          index => "proof2-logs"
+        }
+      }
+    }

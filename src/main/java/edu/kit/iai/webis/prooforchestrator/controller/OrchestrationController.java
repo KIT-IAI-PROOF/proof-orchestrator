@@ -8,7 +8,11 @@ import static org.springframework.http.MediaType.ALL_VALUE;
 
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 
 import edu.kit.iai.webis.prooforchestrator.service.OrchestrationService;
 import edu.kit.iai.webis.proofutils.Colors;
@@ -54,7 +58,7 @@ public class OrchestrationController {
     @PostMapping(value = "/v1/start", produces = MediaType.APPLICATION_JSON_VALUE, consumes = ALL_VALUE)
     public ResponseEntity<Execution> runWorkflow(@Parameter(description = "UUID of the workflow to start", required = true, schema = @Schema(implementation = String.class)) @RequestParam final String executionId) {
         try {
-            final Execution result = this.orchestrationService.prepareWorkflow(null, executionId);
+            final Execution result = this.orchestrationService.prepareWorkflow(executionId);
             return ResponseEntity.ok(result);
         } catch (Exception e) {
             LoggingHelper.debug().messageColor(Colors.ANSI_RED).log("Error preparing WF: Reason: %s", e.getMessage());

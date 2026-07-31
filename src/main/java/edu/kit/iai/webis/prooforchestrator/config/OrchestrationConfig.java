@@ -60,12 +60,12 @@ public class OrchestrationConfig {
     @Value("${proof.orchestration.logLevel:INFO}")
     private String loggingLevel;
 
-    /**
-     * the logging level for the workers.
-     * This environment variable is passed on to the start of the worker docker containers
-     */
-    @Value("${proof.worker.logging.directory:/tmp/proof/logs}")
-    private String workerLoggingDir;
+	/**
+	 * the logging level for the workers.
+	 * This environment variable is passed on to the start of the worker docker containers
+	 */
+	@Value("${proof.worker.logging.directory:/tmp/proof/logs}")
+	private String workerLoggingDir;
 
     /**
      * The PROOF workspace, the area where all data will be located to run a workflow. Default is '/tmp/proof'

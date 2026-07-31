@@ -4,13 +4,15 @@
  */
 package edu.kit.iai.webis.prooforchestrator.service;
 
+import static java.lang.Long.parseLong;
+
+import java.util.List;
 import java.util.NoSuchElementException;
 
 import org.springframework.amqp.rabbit.listener.adapter.MessageListenerAdapter;
 import org.springframework.amqp.support.converter.Jackson2JsonMessageConverter;
 import org.springframework.stereotype.Service;
 
-import edu.kit.iai.webis.prooforchestrator.config.Configuration;
 import edu.kit.iai.webis.prooforchestrator.config.OrchestrationConfig;
 import edu.kit.iai.webis.prooforchestrator.exception.ConcurrentWorkflowException;
 import edu.kit.iai.webis.prooforchestrator.exception.NotFoundException;
@@ -25,16 +27,14 @@ import edu.kit.iai.webis.proofutils.io.MQSyncProducer;
 import edu.kit.iai.webis.proofutils.io.MQValueProducer;
 import edu.kit.iai.webis.proofutils.message.MessageType;
 import edu.kit.iai.webis.proofutils.message.NotifyMessage;
-import edu.kit.iai.webis.proofutils.model.SimulationStatus;
 import edu.kit.iai.webis.proofutils.model.ProcessEnvironment;
 import edu.kit.iai.webis.proofutils.model.SimulationPhase;
+import edu.kit.iai.webis.proofutils.model.SimulationStatus;
 import edu.kit.iai.webis.proofutils.service.ConfigManagerService;
 import edu.kit.iai.webis.proofutils.service.ConsumerManager;
 import edu.kit.iai.webis.proofutils.wrapper.Block;
 import edu.kit.iai.webis.proofutils.wrapper.Execution;
 import edu.kit.iai.webis.proofutils.wrapper.Workflow;
-
-import static java.lang.Long.parseLong;
 
 @Service
 public class OrchestrationService {
@@ -50,7 +50,6 @@ public class OrchestrationService {
     private final WorkflowService workflowService;
     private final DockerHelper dockerHelper;
     private final ExecutionLoggingService executionLoggingService;
-    //    private final RunConfiguration runConfiguration;
     private KubernetesService kubernetesService;
     private Execution execution;
 
@@ -88,7 +87,7 @@ public class OrchestrationService {
      * @param configuration Configuration object for orchestration params
      * @param executionId   UUID of the execution process for a workflow to get from config server
      */
-    public Execution prepareWorkflow(final Configuration configuration, final String executionId) throws IllegalArgumentException {
+    public Execution prepareWorkflow(final String executionId) throws IllegalArgumentException {
         try {
         	this.execution = this.configManagerService.getExecution(executionId);
             SimulationStatus executionStatus = this.execution.getStatus();
@@ -107,7 +106,7 @@ public class OrchestrationService {
         	else {
                 // Setup execution-specific logging
                 this.executionLoggingService.setupExecutionLogging(executionId);
-                
+
                 final Workflow workflow = this.execution.getWorkflow();
 
                 this.workflowService.initialize(this.execution);
@@ -134,16 +133,8 @@ public class OrchestrationService {
                                     new Jackson2JsonMessageConverter())).start();
                 }
 
-                this.workflowService.setStaticInputsAndStartBlocks(
-                        this.mqValueProducer,
-                        this.orchestrationConfig,
-                        this.kubernetesService);
-
-                // Check override execution flag
-                LoggingHelper.info().log(StringTemplates.PREPARED_WORKFLOW, workflow.getId());
-
-//                if( this.orchestrationConfig.getProcessingEnvironment().equalsIgnoreCase("LOCAL")) {
                 ProcessEnvironment processEnv = this.execution.getProcessEnvironment();
+
                 switch (processEnv) {
                     case KUBERNETES -> {
                         try {
@@ -157,10 +148,16 @@ public class OrchestrationService {
                         try {
                             this.dockerHelper.processDockerExecution(workflow, executionId);
                         } catch (Exception e) {
-                            e.printStackTrace();
+                            LoggingHelper.error().log("ERROR processing docker! " + e.getMessage());
+                            // REFFACTOR:  BS.STOPPED oder ABORTED besser?
+                            this.abortWorkflow(executionId, SimulationStatus.SHUT_DOWN);
+                            return this.execution;
                         }
                     }
                 }
+
+                // Check override execution flag
+                LoggingHelper.info().log(StringTemplates.PREPARED_WORKFLOW, workflow.getId());
                 this.configManagerService.saveExecutionStart(executionId);
 
                 return this.execution;
@@ -171,28 +168,40 @@ public class OrchestrationService {
         }
     }
 
+
+    private void initializeWorkflow(final String executionId) {
+    	List<NotifyMessage> blockMessages = this.workflowService.setStaticInputs(this.mqValueProducer);
+    	// set block statuses for all blocks that have no static inputs
+    	blockMessages.forEach(bm -> this.setBlockStatus(bm));
+    }
+
+
     /**
-     * Start workflow execution using prepared workflow
+     * Start workflow execution using prepared workflow after having received NotifyMessage CREATED from all Blocks
+     * (see {@link #setBlockStatus(NotifyMessage)}
      *
      * @param executionId Execution id of the prepared workflow
      */
-    public void runWorkflow(final String executionId) {
+    private void runWorkflow(final String executionId) {
+
         try {
-//            final WorkflowContainer workflowContainer = this.workflowContainerSupplier.getWorkflowContainer();
-            // Update status
-            LoggingHelper.debug().workflowId(this.workflowService.getWorkflow().getName()).executionId(executionId)
+            LoggingHelper.debug().workflowId(this.workflowService.getWorkflow().getName())
                     .log(StringTemplates.STARTED_WORKFLOW, this.workflowService.getWorkflow().getName());
-            // Check manual execution flag
-//            if (!workflowContainer.getRuntimeOptions().isManual() && workflowContainer.isStartable()) {
-            if (this.workflowService.isStartable()) {
-                LoggingHelper.trace().log("WFC is startable, scheduling  WFC !");
-                this.workflowService.prepareNextStepForAllBlocks();
-                this.scheduleService.schedule(this.workflowService);
-				this.workflowService.setSimulationStatus(SimulationStatus.READY);
+
+            while( ! this.workflowService.isStartable() ) {
+            	try {
+            		System.out.println("WF-Service: not yet startable, waiting for 500ms ...");
+            		Thread.sleep(500);
+            	} catch (InterruptedException e) {
+            		e.printStackTrace();
+            		break;
+            	}
             }
-//            workflowContainer.setStatus(SimulationStatus.CREATED); now in setBlockStatus(s)
-            // save to db for logging and reuse
-//            this.workflowContainerSupplier.saveToDatabase();
+            LoggingHelper.debug().log("WFC is startable, scheduling  WFC !");
+            this.workflowService.prepareNextStepForAllBlocks();
+            this.scheduleService.schedule(this.workflowService);
+            this.workflowService.setSimulationStatus(SimulationStatus.READY);
+
         } catch (final NoSuchElementException e) {
             final String error = StringTemplates.NO_WORKFLOWCONTAINER_KNOWN.formatted(executionId);
             LoggingHelper.error().log(error);
@@ -211,11 +220,11 @@ public class OrchestrationService {
         boolean shuttingDown = false;
 
         try {
-            LoggingHelper.trace()
+            LoggingHelper.debug()
                     .workflowId(this.workflowService.getWorkflow().getId())
                     .localBlockId(blockId)
-                    .log("Setting block status to >> %s << for block >> %s <<", blockStatus,
-                            notifyMessage.getGlobalBlockId());
+                    .log("Setting block status to >> %s << for block >> %s << (%d)", blockStatus,
+                            notifyMessage.getGlobalBlockId(), notifyMessage.getLocalBlockId());
 
             // avoid multiple shutdown sync messages
             if( blockStatus == SimulationStatus.SHUT_DOWN && this.statusHelper.areAllStatus(SimulationStatus.SHUT_DOWN)) {
@@ -224,34 +233,33 @@ public class OrchestrationService {
 
             this.statusHelper.setBlockStatus(blockId, blockStatus);
 
-            if (this.statusHelper.existsErrorSimulationStatus()) {
-                LoggingHelper.printStarBordered(notifyMessage.getErrorText());
-            }
-
-
-            // Only proceed if the status is CREATED or SHUT_DOWN
-            if (blockStatus != SimulationStatus.CREATED
-                    && blockStatus != SimulationStatus.SHUT_DOWN
-            ) {
+            if (this.statusHelper.existsErrorSimulationStatus()
+            		&& this.statusHelper.isError(blockStatus) )
+            {
+            	final String errTxt = notifyMessage.getErrorText();
+                LoggingHelper.printStarBordered( errTxt == null || errTxt.isBlank() ? "no error text available!" : errTxt);
                 return;
             }
 
             switch (blockStatus) {
-				case CREATED -> {
-					if (this.statusHelper.areAllStatus(SimulationStatus.CREATED))
-					{
-						LoggingHelper.info().log(LoggingHelper.printStarBordered("All Blocks are CREATED, Running Workflow"));
-						this.runWorkflow(notifyMessage.getExecutionId());
+            	case CREATED -> {
+					if (this.statusHelper.areAllStatus(SimulationStatus.CREATED) ) {
+						this.initializeWorkflow(notifyMessage.getExecutionId());
 						this.workflowService.setSimulationStatus(SimulationStatus.CREATED);
+					}
+            	}
+				case VALUES_SET -> {
+					if (this.statusHelper.areAllStatus(SimulationStatus.VALUES_SET)
+							&& this.workflowService.getSimulationStatus() == SimulationStatus.CREATED)
+					{
+						LoggingHelper.info().log(LoggingHelper.printStarBordered("All Blocks got their INIT values, try to start Workflow with Phase INIT"));
+						this.runWorkflow(notifyMessage.getExecutionId());
 					}
 				}
 				case SHUT_DOWN -> {
 					if( shuttingDown ) {
 						LoggingHelper.warn().log("Workflow is already shutting down, status message SHUT_DOWN ignored");
 					}
-                    LoggingHelper.debug().log("=== Case SHUT_DOWN, execution '%s': all SHUT_DOWN: %s",
-                        notifyMessage.getExecutionId(), this.statusHelper.areAllStatus(SimulationStatus.SHUT_DOWN));
-
 		            if ( this.statusHelper.areAllStatus(SimulationStatus.SHUT_DOWN) )
 		            {
                         // Stop the execution specific logging
@@ -260,37 +268,11 @@ public class OrchestrationService {
 
 		            	shuttingDown = true;
 		                this.abortWorkflow(notifyMessage.getExecutionId(), SimulationStatus.SHUT_DOWN);
-                        LoggingHelper.debug().log("=== Resetting status for execution '%s'", executionId);
 						this.workflowService.setSimulationStatus(SimulationStatus.SHUT_DOWN);
 		            }
 				}
 				default -> {} // do nothing, status is already set
 			}
-// delete, because ScheduleService does the rest
-//            switch (this.workflowService.getWorkflow().getSimulationStrategy()) {
-//                case WAIT_AND_CONTINUE -> {
-////                	if (workflowContainer.haveAllBlockContainersSameStatus(SimulationStatus.EXECUTION_STEP_FINISHED)) {
-////YYYYY                    if (workflowContainer.haveAllBlockContainersSameStatus(SimulationStatus.READY)) {
-////                        // communication points increase for all blocks
-////                        workflowContainer.prepareNextStepForAllBlocks();
-////                    }
-////	                else if (workflowContainer.haveShutdownRelevantBlocksFinalized()){
-////	                }
-//                }
-//                case IGNORE -> {
-//                    // must be updated to new Stucture!!
-//                    if (notifyMessage.getSimulationPhase() == SimulationPhase.EXECUTE
-//                            && status == SimulationStatus.EXECUTION_STEP_FINISHED) {
-//                        //RL Bei Ignore darf nur der Orch den nächsten Step anstossen.
-////					workflowContainer.nextStepForAllBlocks();
-//                        this.workflowService.prepareNextStep(blockId);
-//                    }
-//                }
-//                default -> throw new IllegalArgumentException("Unexpected value: " + this.workflowService.getWorkflow().getSimulationStrategy());
-//            }
-
-
-//PERF            this.workflowContainerRepository.save(workflowContainer);
         } catch (final NoSuchElementException e) {
             LoggingHelper.error().log(StringTemplates.NO_WORKFLOWCONTAINER_KNOWN, notifyMessage.getExecutionId());
             throw new NotFoundException(StringTemplates.NO_WORKFLOWCONTAINER_KNOWN.formatted(notifyMessage.getExecutionId()), e);
