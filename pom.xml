@@ -207,6 +207,7 @@
                             <inputSpec>${project.build.directory}/api.json</inputSpec>
                             <output>${project.basedir}/generated/typescript</output>
                             <generatorName>typescript-axios</generatorName>
+                            <templateDirectory>${project.basedir}/openapi-templates/typescript-axios</templateDirectory>
                             <gitHost>${gitHost}</gitHost>
                             <gitUserId>${gitUserId}</gitUserId>
                             <gitRepoId>${gitRepoId}</gitRepoId>
