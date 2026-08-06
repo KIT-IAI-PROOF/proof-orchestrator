@@ -42,7 +42,7 @@ public class DockerHelper {
 
     private final OrchestrationConfig orchestrationConfig;
 
-    @Value("${proof.volume}")
+    @Value("${proof.volume:proof-files}")
     private String filesVolumeName;
 
     /**
@@ -181,7 +181,7 @@ public class DockerHelper {
                     } catch (Exception ignored) {
 
                     }
-                    Bind pyFiles = new Bind("proof-files", new Volume(workspaceDir));
+                    Bind pyFiles = new Bind(this.filesVolumeName, new Volume(workspaceDir));
                     try {
                     	HostConfig hostConfig = HostConfig.newHostConfig()
                     			.withNetworkMode("proof")
@@ -192,7 +192,7 @@ public class DockerHelper {
                         StringBuilder dockerCmd = new StringBuilder("docker run -d");
                         dockerCmd.append(" --name ").append(name);
                         dockerCmd.append(" --network proof");
-                        dockerCmd.append(" -v proof-files:" + workspaceDir);
+                        dockerCmd.append(" -v " + this.filesVolumeName + ":" + workspaceDir);
                         for (String envVar : envVars) {
                             dockerCmd.append(" -e \"").append(envVar).append("\"");
                         }
