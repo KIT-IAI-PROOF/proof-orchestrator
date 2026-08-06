@@ -168,6 +168,7 @@ public class DockerHelper {
             Files.createDirectories(Path.of(workerLogDir));
             String workspaceDir = this.orchestrationConfig.getWorkspaceDir();
 
+            LoggingHelper.info().log("Using volume '%s' with location '%s' and logging dir: '%s'", this.filesVolumeName, workspaceDir, workerLogDir);
             for (Block block : workflow.getBlocks().values()) {
                 executor.submit(() -> {
                     String imageLocation = block.getContainerImage();
