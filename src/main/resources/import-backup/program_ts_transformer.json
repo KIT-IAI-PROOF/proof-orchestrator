@@ -1,8 +1,0 @@
-{
-  "id": "91eff62a-4e1f-42e3-b76e-d024703dfdbe",
-  "name": "ts_transformer",
-  "description": "modify ts data",
-  "tag": "test",
-  "runtime": "PYTHON",
-  "path": "import/ts_transformer.py"
-}

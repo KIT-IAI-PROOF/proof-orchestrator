@@ -1,8 +1,0 @@
-{
-  "id": "2r1t1w2a-4e1f-42e3-b76e-d024703dfd-1",
-  "name": "ts_reader",
-  "description": "Fetching ts data from url",
-  "tag": "test",
-  "runtime": "PYTHON",
-  "path": "import/ts_reader_2r1t1w_1.py"
-}

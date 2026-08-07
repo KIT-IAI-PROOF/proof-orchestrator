@@ -1,8 +1,0 @@
-{
-  "id": "writera8-b591-44db-b319-24dd91r1t2w2",
-  "name": "ts_writer",
-  "description": "Posting ts to url",
-  "tag": "test",
-  "runtime": "PYTHON",
-  "path": "import/ts_writer_1r1t2w_2.py"
-}

@@ -1,8 +1,0 @@
-{
-  "id": "progidjakeflowelec",
-  "name": "elecModel",
-  "description": "Calculation of the Current through a resistance dependent on the temperature",
-  "tag": "jaketest",
-  "runtime": "PYTHON",
-  "path": "import/elecModel.py"
-}

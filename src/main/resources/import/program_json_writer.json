@@ -1,8 +1,0 @@
-{
-  "id": "2409e7a8-b591-44db-b319-24dd9cb88dba",
-  "name": "json_writer",
-  "description": "Posting json to url",
-  "tag": "test",
-  "runtime": "PYTHON",
-  "path": "import/json_writer.py"
-}
