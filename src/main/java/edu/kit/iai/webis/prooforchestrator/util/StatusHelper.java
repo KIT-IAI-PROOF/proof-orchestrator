@@ -7,6 +7,7 @@ package edu.kit.iai.webis.prooforchestrator.util;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.StringJoiner;
 
 import org.springframework.stereotype.Component;
 
@@ -14,8 +15,8 @@ import edu.kit.iai.webis.prooforchestrator.container.BlockContainer;
 import edu.kit.iai.webis.proofutils.LoggingHelper;
 import edu.kit.iai.webis.proofutils.message.SyncMessage;
 import edu.kit.iai.webis.proofutils.message.ValueMessage;
-import edu.kit.iai.webis.proofutils.model.SimulationStatus;
 import edu.kit.iai.webis.proofutils.model.SimulationPhase;
+import edu.kit.iai.webis.proofutils.model.SimulationStatus;
 
 /**
  * a helper class for the writing of messages (a  {@link ValueMessage} or a {@link SyncMessage}) to a file or to a
@@ -42,19 +43,21 @@ public class StatusHelper {
      */
     public void setBlockContainers(List<BlockContainer> blockContainers) {
         this.blockContainers = blockContainers;
+
         /**
          *  for performance reasons: put the BlockContainers to an array.
          *  It cannot be guaranteed that the localBlockId will increase continuously and lie exactly between 0 and blockContainers.size()
          *  As there are only relatively few BlockContainers, it is not critical that there may be gaps in the array
-         */
+         now the list is sorted ...
         int[] max = new int[1];
         this.blockContainers.forEach(b -> {
             if (b.getIndex() > max[0]) {
                 max[0] = b.getIndex();
             }
         });
+         */
 
-        this.blockContainerArray = new BlockContainer[max[0] + 1];
+        this.blockContainerArray = new BlockContainer[this.blockContainers.getLast().getIndex() + 1];
 
         this.blockContainers.forEach(b -> {
             this.blockContainerArray[b.getIndex()] = b;
@@ -144,7 +147,7 @@ public class StatusHelper {
                 this.passedPhases[SimulationPhase.SHUTDOWN.ordinal()] = true;
                 LoggingHelper.info().log(LoggingHelper.printStarBordered(StringTemplates.ALL_BLOCKS_ARE_SHUT_DOWN));
             }
-            case ABORTED, EXECUTION_STEP_FINISHED, READY, WAITING -> {
+            case ABORTED, EXECUTION_STEP_FINISHED, READY, WAITING, VALUES_SET -> {
 //			return; // no logging output
             }
             case ERROR_INIT, ERROR_STEP, ERROR_FINALIZE -> {
@@ -171,6 +174,7 @@ public class StatusHelper {
                     + "R=" + this.intStatusArray[SimulationStatus.READY.ordinal()]
                     + ", W=" + this.intStatusArray[SimulationStatus.WAITING.ordinal()]
                     + ", C=" + this.intStatusArray[SimulationStatus.CREATED.ordinal()]
+                    + ", VS=" + this.intStatusArray[SimulationStatus.VALUES_SET.ordinal()]
                     + ", I=" + this.intStatusArray[SimulationStatus.INITIALIZED.ordinal()]
                     + ", ESF=" + this.intStatusArray[SimulationStatus.EXECUTION_STEP_FINISHED.ordinal()]
                     + ", EF=" + this.intStatusArray[SimulationStatus.EXECUTION_FINISHED.ordinal()]
@@ -218,16 +222,28 @@ public class StatusHelper {
      * @return true, if all {@link BlockContainer}s have the same {@link SimulationStatus}, false, if not
      */
     public synchronized boolean areAllStatus(SimulationStatus status) {
-        boolean res = this.intStatusArray[status.ordinal()] == this.blockContainers.size();
-        if (LoggingHelper.isLevelDebugOrTrace()) {
-            System.out.println("SH: haveAllBlockContainersSameStatus: " + status + "? " + " ==> " + (res ? "YES" : "NO"));
-            System.out.print("Blocks: ");
-            this.blockContainers.forEach(bc -> {
-                System.out.print("\t(" + bc.getIndex() + "): " + bc.getStatus());
-            });
-            System.out.println();
-        }
-        return res;
+        return this.intStatusArray[status.ordinal()] == this.blockContainers.size();
+    }
+
+    /**
+     * check whether all {@link SimulationStatus}es are either A or B (or C ...)
+     * @param statuses the desired statuses to be checked
+     * @return true, if all statuses are either ... or ... or ...
+     */
+    public synchronized boolean areAllStatusOR(SimulationStatus... statuses ) {
+    	int num = 0;
+    	for (SimulationStatus simulationStatus : statuses) {
+			num += this.intStatusArray[simulationStatus.ordinal()];
+		}
+    	return num == this.blockContainers.size();
+    }
+
+    public void printBlockStatuses() {
+        System.out.print("Blocks: ");
+        this.blockContainers.forEach(bc -> {
+            System.out.print("\t(" + bc.getIndex() + "): " + bc.getStatus());
+        });
+        System.out.println();
     }
 
     /**
@@ -285,5 +301,24 @@ public class StatusHelper {
         return this.passedPhases[phase.ordinal()];
     }
 
+    public String getListOfBlocksWithStatus( SimulationStatus status ) {
+    	final StringJoiner sb = new StringJoiner(", ", "List of blocks with status " + status +": ", "" ) ;
+    	this.blockContainers.forEach(b -> {
+    		if( status == b.getStatus() ) {
+				sb.add("("+b.getIndex()+")");
+			}
+    	});
+        return sb.toString();
+    }
 
+    /**
+     * check whether a given status is an error status
+     * @param status the given status
+     * @return true, if it is an error status, false, otherwise
+     */
+    public boolean isError( SimulationStatus status ) {
+    	return status == SimulationStatus.ERROR_INIT
+    			|| status == SimulationStatus.ERROR_STEP
+    			|| status == SimulationStatus.ERROR_FINALIZE;
+    }
 }

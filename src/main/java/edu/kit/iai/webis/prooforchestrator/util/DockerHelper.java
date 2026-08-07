@@ -14,13 +14,13 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
-import com.github.dockerjava.api.command.PullImageResultCallback;
-import com.github.dockerjava.api.exception.DockerException;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import com.github.dockerjava.api.DockerClient;
 import com.github.dockerjava.api.command.CreateContainerResponse;
+import com.github.dockerjava.api.command.PullImageResultCallback;
+import com.github.dockerjava.api.exception.DockerException;
 import com.github.dockerjava.api.exception.NotFoundException;
 import com.github.dockerjava.api.model.Bind;
 import com.github.dockerjava.api.model.HostConfig;
@@ -32,18 +32,17 @@ import com.github.dockerjava.httpclient5.ApacheDockerHttpClient;
 
 import edu.kit.iai.webis.prooforchestrator.config.OrchestrationConfig;
 import edu.kit.iai.webis.proofutils.Colors;
+import edu.kit.iai.webis.proofutils.CommonStringTemplates;
 import edu.kit.iai.webis.proofutils.LoggingHelper;
 import edu.kit.iai.webis.proofutils.wrapper.Block;
 import edu.kit.iai.webis.proofutils.wrapper.Workflow;
-
-import edu.kit.iai.webis.proofutils.CommonStringTemplates;
 
 @Component
 public class DockerHelper {
 
     private final OrchestrationConfig orchestrationConfig;
 
-    @Value("${proof.volume}")
+    @Value("${proof.volume:proof-files}")
     private String filesVolumeName;
 
     /**
@@ -85,9 +84,9 @@ public class DockerHelper {
 	}
 
     /**
-     * Get the logging directory for a worker based on the execution id. 
-     * If a placeholder is used in the configuration, it is replaced and stored in the workerLoggingDir variable 
-     * in the first call of this method. 
+     * Get the logging directory for a worker based on the execution id.
+     * If a placeholder is used in the configuration, it is replaced and stored in the workerLoggingDir variable
+     * in the first call of this method.
      * @param executionId Id of the execution.
      * @return the workerLoggingDir without placeholder
      */
@@ -165,15 +164,16 @@ public class DockerHelper {
             ExecutorService executor = Executors.newFixedThreadPool(workflow.getBlocks().size());
 
             // Create the log directory for the workers to prevent errors when multiple workers try to create the same directory at the same time
-            String workerLogDir = getWorkerLogDir(executionID);
+            String workerLogDir = this.getWorkerLogDir(executionID);
             Files.createDirectories(Path.of(workerLogDir));
             String workspaceDir = this.orchestrationConfig.getWorkspaceDir();
-            
+
+            LoggingHelper.info().log("Using volume '%s' with location '%s' and logging dir: '%s'", this.filesVolumeName, workspaceDir, workerLogDir);
             for (Block block : workflow.getBlocks().values()) {
                 executor.submit(() -> {
                     String imageLocation = block.getContainerImage();
                     String name = block.getName().replaceAll("\\s", "") + "-" + block.getIndex();
-                    LoggingHelper.info().log("Starting block '" + block.getName() + "' as '" + name + "' with image: " + imageLocation);
+                    LoggingHelper.info().log("Starting block '%s' as '%s' with image %s,   \tUUID=%s, index=(%d)", block.getName(), name, imageLocation, block.getId(), block.getIndex());
 
                     try {
                         docker.removeContainerCmd(name)
@@ -182,9 +182,7 @@ public class DockerHelper {
                     } catch (Exception ignored) {
 
                     }
-                    LoggingHelper.info().log("Block uuid: " + block.getId());
-                    LoggingHelper.info().log("Block id: " + block.getIndex());
-                    Bind pyFiles = new Bind("proof-files", new Volume(workspaceDir));
+                    Bind pyFiles = new Bind(this.filesVolumeName, new Volume(workspaceDir));
                     try {
                     	HostConfig hostConfig = HostConfig.newHostConfig()
                     			.withNetworkMode("proof")
@@ -195,7 +193,7 @@ public class DockerHelper {
                         StringBuilder dockerCmd = new StringBuilder("docker run -d");
                         dockerCmd.append(" --name ").append(name);
                         dockerCmd.append(" --network proof");
-                        dockerCmd.append(" -v proof-files:" + workspaceDir);
+                        dockerCmd.append(" -v " + this.filesVolumeName + ":" + workspaceDir);
                         for (String envVar : envVars) {
                             dockerCmd.append(" -e \"").append(envVar).append("\"");
                         }
