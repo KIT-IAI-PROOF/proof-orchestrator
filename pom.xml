@@ -25,7 +25,6 @@
         <gitHost>github.com/</gitHost>
         <gitUserId>KIT-IAI-PROOF</gitUserId>
         <gitRepoId>proof-orchestrator</gitRepoId>
-        <model.version>1.0.0</model.version>
         <config.manager.version>1.3.0</config.manager.version>
     </properties>
 
