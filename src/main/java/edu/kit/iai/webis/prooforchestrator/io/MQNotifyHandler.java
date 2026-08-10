@@ -27,7 +27,8 @@ public class MQNotifyHandler {
      */
     public void handleMessage(final NotifyMessage message) {
 
-        LoggingHelper.debug().log("==== W ====> Notify Message (BlockStatus=%s) received from Block %s (%d)    (CP=%d)\n",
+        LoggingHelper.debug().log("==== W ====> Notify Message (SimulationStatus=%s) received from Block %s (%d)    " +
+                "(CP=%d)\n",
         		message.getBlockStatus(), message.getGlobalBlockId(), message.getLocalBlockId(),
                 message.getCommunicationPoint());
 

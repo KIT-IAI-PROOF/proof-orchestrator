@@ -15,8 +15,8 @@ import edu.kit.iai.webis.prooforchestrator.util.StatusHelper;
 import edu.kit.iai.webis.prooforchestrator.util.StringTemplates;
 import edu.kit.iai.webis.proofutils.LoggingHelper;
 import edu.kit.iai.webis.proofutils.io.MQSyncProducer;
-import edu.kit.iai.webis.proofutils.model.SimulationStatus;
 import edu.kit.iai.webis.proofutils.model.SimulationPhase;
+import edu.kit.iai.webis.proofutils.model.SimulationStatus;
 
 
 @Service
@@ -26,6 +26,8 @@ public class ScheduleService {
     private final StatusHelper statusHelper;
     private ScheduledExecutorService executor = null;
     private Long stepDuration = 200L;
+    // Delay to be used to schedule createCheckTask when shutting down
+    private final Integer SHUTDOWN_DELAY = 1000;   // [ms]
 
     public ScheduleService(final MQSyncProducer mqSyncProducer,
                            final StatusHelper statusHelper) {
@@ -76,13 +78,18 @@ public class ScheduleService {
         return new Runnable() {
             @Override
             public void run() {
+            	boolean shuttingDown = false;
                 String msg = "";
 
+                if( LoggingHelper.isLevelDebugOrTrace() ) {
+                	ScheduleService.this.statusHelper.printBlockStatuses();
+                }
                 try {
+                    boolean triggerShutdownBlocks = false;
                     if (ScheduleService.this.statusHelper.existsErrorSimulationStatus()) {
-                        workflowService.sendSyncMessage(ScheduleService.this.mqSyncProducer, SimulationPhase.SHUTDOWN);
                         LoggingHelper.error().workflowId(workflowService.getWorkflow().getId())
                                 .log("Error block status is found! NO more SyncMessage will be sent! => sending SHUTDOWN to all blocks");
+                        triggerShutdownBlocks = true;
                     }
                     if (ScheduleService.this.statusHelper.areAllStatus(SimulationStatus.SHUT_DOWN)) {
                     	LoggingHelper.info().log("---> all blocks are shut down => stopping execution");
@@ -92,16 +99,15 @@ public class ScheduleService {
                     else if (ScheduleService.this.statusHelper.isAnyStatus(SimulationStatus.SHUT_DOWN))
                     {
                     	LoggingHelper.info().log("a block has shut down => sending SHUTDOWN SYNC to all Blocks ...");
-                    	workflowService.sendSyncMessage(ScheduleService.this.mqSyncProducer, SimulationPhase.SHUTDOWN);
+                        triggerShutdownBlocks = true;
                     }
                     else if (ScheduleService.this.statusHelper.areAllStatus(SimulationStatus.FINALIZED)) {
                     	LoggingHelper.info().log("All block containers have finalized, sending  SHUTDOWN SYNC message!");
-                    	workflowService.sendSyncMessage(ScheduleService.this.mqSyncProducer, SimulationPhase.SHUTDOWN);
+                        triggerShutdownBlocks = true;
                     }
                     else if (ScheduleService.this.statusHelper.isAnyStatus(SimulationStatus.FINALIZED)) {
-                    	// REFACTOR: check for shutdown relevant blocks
                         LoggingHelper.info().log("One or more block containers have finalized, sending SHUTDOWN SYNC message!");
-                        workflowService.sendSyncMessage(ScheduleService.this.mqSyncProducer, SimulationPhase.SHUTDOWN);
+                        triggerShutdownBlocks = true;
                     }
                     else if (ScheduleService.this.statusHelper.areAllStatus(SimulationStatus.EXECUTION_FINISHED)) {
                     	LoggingHelper.info().log(StringTemplates.ALL_BLOCKS_ARE_EXECUTION_FINISHED);
@@ -109,45 +115,70 @@ public class ScheduleService {
                     			ScheduleService.this.mqSyncProducer,
                     			SimulationPhase.FINALIZE);
                     }
-                    else if (ScheduleService.this.statusHelper.hasAShutdownRelevantBlockTheStatus(SimulationStatus.EXECUTION_FINISHED)) {
-                        workflowService.sendSyncMessage(ScheduleService.this.mqSyncProducer, SimulationPhase.FINALIZE);
-                    }
                     else if (ScheduleService.this.statusHelper.isAnyStatus(SimulationStatus.EXECUTION_FINISHED)) {
-                        // REFACTOR: check for shutdown relevant blocks, but: see above hasAShutdownRelevantBlockTheStatus
-                        LoggingHelper.info().log(LoggingHelper.printStarBordered("A Block that is not relevant for a workflow shutdown has finished its execution"));
-                        workflowService.prepareNextStepForAllBlocks();
-                        workflowService.sendSyncMessage(ScheduleService.this.mqSyncProducer, SimulationPhase.EXECUTE);
+                    	if (ScheduleService.this.statusHelper.hasAShutdownRelevantBlockTheStatus(SimulationStatus.EXECUTION_FINISHED)) {
+                    		LoggingHelper.info().log("A Block that is relevant for a workflow shutdown has finished its execution. Finalizing ...");
+                    		workflowService.sendSyncMessage(ScheduleService.this.mqSyncProducer, SimulationPhase.FINALIZE);
+                    	}
+                    	else {
+                    		LoggingHelper.info().log("One or more blocks that are not relevant for a workflow shutdown has finished their execution");
+                    		LoggingHelper.info().log(ScheduleService.this.statusHelper.getListOfBlocksWithStatus(SimulationStatus.EXECUTION_FINISHED)
+                    									+ ", continuing the simulation ... ");
+                    		workflowService.prepareNextStepForAllBlocks();
+                    		workflowService.sendSyncMessage(ScheduleService.this.mqSyncProducer, SimulationPhase.EXECUTE);
+                    	}
+                    }
+
+                    else if (ScheduleService.this.statusHelper.isAnyStatus(SimulationStatus.WAITING)) {
+                    	LoggingHelper.debug().log("A Block has still the status WAITING, doing nothing ...");
                     }
                     else {
-                        // All blocks are initialized
+                        // All blocks have the status EXECUTION_STEP_FINISHED, READY or INITIALIZED
                         switch (workflowService.getWorkflow().getSimulationStrategy()) {
-                            case WAIT_AND_CONTINUE, WAIT_AND_RETRY -> {
+	                        case WAIT_AND_CONTINUE -> {
 
-                                boolean allFinished = ScheduleService.this.statusHelper.areAllStatus(SimulationStatus.EXECUTION_STEP_FINISHED);
-                                boolean allReady = ScheduleService.this.statusHelper.areAllStatus(SimulationStatus.READY);
-                                boolean allInitialized = ScheduleService.this.statusHelper.areAllStatus(SimulationStatus.INITIALIZED);
-                                boolean readyForSync = allFinished || allReady || allInitialized;
-                                LoggingHelper.debug().log("Strategy: WAC, WAR: allFinished: %b, allReady: %b, allInitialized: %b => readyForSync: %b", allFinished, allReady, allInitialized, readyForSync);
-                                if (readyForSync) {
+	                        	if (ScheduleService.this.statusHelper.areAllStatus(SimulationStatus.EXECUTION_STEP_FINISHED)
+	                        			|| ScheduleService.this.statusHelper.areAllStatus(SimulationStatus.READY)
+	                        			|| ScheduleService.this.statusHelper.areAllStatus(SimulationStatus.INITIALIZED)
+	                        	) {
+	                        		// set the status to READY
+	                        		workflowService.prepareNextStepForAllBlocks();
+	                        	}
+	                        }
+                            case WAIT_AND_RETRY -> {
+                            	System.out.println("\nSS::  ============>>>>> ScheduleService: WAR  <<<<<========== \n");
+
+                                if (ScheduleService.this.statusHelper.areAllStatus(SimulationStatus.EXECUTION_STEP_FINISHED)
+	                        			|| ScheduleService.this.statusHelper.areAllStatus(SimulationStatus.READY)
+	                        			|| ScheduleService.this.statusHelper.areAllStatus(SimulationStatus.INITIALIZED)
+	                        	) {
+                                    // set the status to READY for all blocks
+                                	System.out.println("\nSS::  ============>>>>> next step WAR <<<<<========== \n");
                                     workflowService.prepareNextStepForAllBlocks();
-                                    // send new sync message
-                                    LoggingHelper.info().log(StringTemplates.ALL_BLOCKS_COMPLETE_DOING_STEP);
-                                    workflowService.sendSyncMessage(
-                                            ScheduleService.this.mqSyncProducer,
-                                            SimulationPhase.EXECUTE);
-                                } else {
-                                    // Not all blocks finished - wait for more blocks
-                                    LoggingHelper.debug().log("Waiting for all blocks to finish step");
+                                }
+                                else if (ScheduleService.this.statusHelper.isAnyStatus(SimulationStatus.RETRY)) {
+                                	// prepare all affected blocks for the retry step
+                                	System.out.println("\nSS::  any status is RETRY:  ============>>>>> next step WAR : prepare RETRY Step <<<<<========== \n");
+                                	workflowService.prepareRetryStep();
+                                }
+                                else {
+                                	System.out.println("\nSS::  no status is RETRY:  ============>>>>> ELSE <<<<<========== \n");
                                 }
                             }
                             case IGNORE -> {
-                                    workflowService.sendSyncMessage(
-                                            ScheduleService.this.mqSyncProducer,
-                                            SimulationPhase.EXECUTE);
-//                                }
                             }
-                            default -> throw new IllegalArgumentException("Unexpected value: " + workflowService.getWorkflow().getSimulationStrategy());
-                        }
+                            default -> {
+                            	throw new IllegalArgumentException("Unexpected value: " + workflowService.getWorkflow().getSimulationStrategy());
+                            }
+                        } // switch()
+                        workflowService.sendSyncMessage(
+                        		ScheduleService.this.mqSyncProducer,
+                        		SimulationPhase.EXECUTE);
+                    } //else
+
+                    if (triggerShutdownBlocks && !shuttingDown ) {
+                        workflowService.sendSyncMessage(ScheduleService.this.mqSyncProducer, SimulationPhase.SHUTDOWN);
+                        shuttingDown = true;
                     }
                 } catch (final Exception e) {
                     LoggingHelper.error().log(StringTemplates.FAILED_TO_SCHEDULE_WORKFLOW);
@@ -157,7 +188,7 @@ public class ScheduleService {
 
 //                LoggingHelper.debug().workflowId(workflowService.getWorkflow().getId())
 //                        .log(methodName + "\t" + msg + StringTemplates.WAITING_FOR_S_MS.formatted(ScheduleService.this.stepDuration * stepSize));
-                executor.schedule(this, ScheduleService.this.stepDuration * stepSize, TimeUnit.MILLISECONDS);
+                executor.schedule(this, shuttingDown ? SHUTDOWN_DELAY : ScheduleService.this.stepDuration * stepSize, TimeUnit.MILLISECONDS);
             }
         };
     }
@@ -182,7 +213,7 @@ public class ScheduleService {
                     LoggingHelper.error().log("Error block status is found! NO more SyncMessage!");
                 } else {
                     switch (workflowService.getWorkflow().getSimulationStrategy()) {
-                        case WAIT_AND_CONTINUE -> {
+                        case WAIT_AND_CONTINUE, WAIT_AND_RETRY -> {
 
                             if (ScheduleService.this.statusHelper.areAllStatus(SimulationStatus.READY)
                                     || ScheduleService.this.statusHelper.areAllStatus(SimulationStatus.INITIALIZED)) {
@@ -196,18 +227,6 @@ public class ScheduleService {
                                         + ": Skip step and wait until all blocks finish "
                                         + "their tasks and send back notify messages");
                             }
-                        }
-                        case WAIT_AND_RETRY -> {
-
-                            if (ScheduleService.this.statusHelper.areAllStatus(SimulationStatus.READY)) {
-                                LoggingHelper.info().log(methodName
-                                        + StringTemplates.ALL_BLOCKS_COMPLETE_DOING_STEP);
-                                workflowService.sendSyncMessage(this.mqSyncProducer, SimulationPhase.EXECUTE);
-                            }
-                            LoggingHelper.info().log(methodName
-                                    + StringTemplates.BLOCKS_INCOMPLETE_WAITING);
-                            LoggingHelper.info().log(methodName
-                                    + ": Skip step and wait a duration then send the same sync messages again");
                         }
                         case IGNORE -> {
 //                            System.out.println(
@@ -243,6 +262,7 @@ public class ScheduleService {
         final String methodName = "Starting INIT-Task::";
         return () -> {
             try {
+
                 LoggingHelper.info().log(methodName + StringTemplates.EXECUTING_INIT_TACT);
                 workflowService.sendSyncMessage(this.mqSyncProducer, SimulationPhase.INIT);
             } catch (final Exception e) {
