@@ -1,8 +1,7 @@
 /*
- * Copyright (c) 2022
- * Karlsruhe Institute of Technology - Institute for Automation and Applied Informatics
+ * Copyright (c) 2025-2026
+ * Karlsruhe Institute of Technology - Institute for Automation and Applied Informatics (IAI)
  */
-
 package edu.kit.iai.webis.prooforchestrator.service;
 
 import java.util.concurrent.Executors;
@@ -189,7 +188,7 @@ public class ScheduleService {
                 }
                 final Long stepSize = Long.valueOf(1);
 
-//                LoggingHelper.info().workflowId(workflowService.getWorkflow().getId())
+//                LoggingHelper.debug().workflowId(workflowService.getWorkflow().getId())
 //                        .log(methodName + "\t" + msg + StringTemplates.WAITING_FOR_S_MS.formatted(ScheduleService.this.stepDuration * stepSize));
                 executor.schedule(this, shuttingDown ? SHUTDOWN_DELAY : ScheduleService.this.stepDuration * stepSize, TimeUnit.MILLISECONDS);
             }
@@ -232,10 +231,10 @@ public class ScheduleService {
                             }
                         }
                         case IGNORE -> {
-                            System.out.println(
-                                    "++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ IGNORE " +
-                                            "++++++++++++++ passed INIT? +++++++++++++++++++++++:  "
-                                            + this.statusHelper.hasSimulationPassedPhase(SimulationPhase.INIT));
+//                            System.out.println(
+//                                    "++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ IGNORE " +
+//                                            "++++++++++++++ passed INIT? +++++++++++++++++++++++:  "
+//                                            + this.statusHelper.hasSimulationPassedPhase(SimulationPhase.INIT));
                             if (this.statusHelper.hasSimulationPassedPhase(SimulationPhase.INIT)) {
                                 LoggingHelper.debug().log(methodName + "->");
                                 workflowService.sendSyncMessage(this.mqSyncProducer, SimulationPhase.EXECUTE);

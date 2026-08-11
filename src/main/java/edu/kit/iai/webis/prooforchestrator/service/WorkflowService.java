@@ -1,3 +1,7 @@
+/*
+ * Copyright (c) 2025-2026
+ * Karlsruhe Institute of Technology - Institute for Automation and Applied Informatics (IAI)
+ */
 package edu.kit.iai.webis.prooforchestrator.service;
 
 import java.util.ArrayList;
@@ -46,7 +50,6 @@ public class WorkflowService {
     private List<MQInPort> inPorts = new ArrayList<>();
     private List<MQOutPort> outPorts = new ArrayList<>();
 
-    //    private String executionId;
     private final Map<Integer, BlockContainer> blockContainerMap = new HashMap<Integer, BlockContainer>();
     /**
      * Current status of the workflow service.
@@ -458,8 +461,6 @@ public class WorkflowService {
             try {
                 if (BlockHelper.checkIfAllRequiredInputsHaveValues(block, executionParameters)) {
                     BlockContainer blockContainer = new BlockContainer();
-                    // TODO TEST: only for test purposes:  override the random uuid with a specialized one:
-//        			blockContainer.setGlobalId("BC_uuid__" + block.getId() + "-" + block.getIndex());
                     blockContainer.setBlock(block);
                     blockContainer.setGlobalId(block.getId());
                     blockContainer.setWorkflowId(this.workflow.getId());
@@ -472,7 +473,7 @@ public class WorkflowService {
                     blockContainer.setConfiguration(this.workflow.getStepBasedConfig());
 
                     /**
-                     * TODO: necessary?
+                     * TODO: REFACTOR: is this still necessary?
                      * The 'old' setting of the application-dev.yaml contents is done via autoWiring at the only location,
                      * where it is required:
                      * => prooforchestrator.config.OrchestrationConfig, used at prooforchestrator.service.KubernetesService
@@ -531,7 +532,7 @@ public class WorkflowService {
                         final var portName =
                                 NameHelper.getInputQueueName(this.executionId, workflowId,
                                         blockContainer.getIndex(), input.getName());
-                        System.out.println("WFC::connectInputsAndOutputs():  Inport-Name: " + portName);
+                        LoggingHelper.debug().log("WFC::connectInputsAndOutputs():  Inport-Name: " + portName);
                         inPorts.put(portName, new MQInPort(portName));
                     }
                 });
@@ -545,7 +546,7 @@ public class WorkflowService {
                     final var portName =
                             NameHelper.getOutputQueueName(this.executionId, workflowId,
                                     blockContainer.getIndex(), output.getName());
-                    System.out.println("WFC::connectInputsAndOutputs():  Outport-Name: " + portName);
+                    LoggingHelper.debug().log("WFC::connectInputsAndOutputs():  Outport-Name: " + portName);
                     outPorts.put(portName, new MQOutPort(portName));
                 });
             }
@@ -553,8 +554,8 @@ public class WorkflowService {
             	System.out.println("WFC::I/O von Block: " + blockContainer.getBlock().getName() + " => keine Outputs");
             }
         });
+        
         // Connect Input and Output ports based on workflow config
-
         this.workflow.getConnections().forEach((final var connection) -> {
             final String inputBlockID = connection.getSourceBlockID();
             final String outputBlockID = connection.getTargetBlockID();

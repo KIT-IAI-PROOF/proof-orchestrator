@@ -1,8 +1,7 @@
 /*
- * Copyright (c) 2023
- * Karlsruhe Institute of Technology - Institute for Automation and Applied Informatics
+ * Copyright (c) 2025-2026
+ * Karlsruhe Institute of Technology - Institute for Automation and Applied Informatics (IAI)
  */
-
 package edu.kit.iai.webis.prooforchestrator.util;
 
 import java.util.ArrayList;
@@ -152,7 +151,6 @@ public class StatusHelper {
 //			return; // no logging output
             }
             case ERROR_INIT, ERROR_STEP, ERROR_FINALIZE -> {
-                // ERROR HANDLING in WFC/OrchService/ScheduleService  !!??
 //			LoggingHelper.error()
 //			.log(StringTemplates.printStarBordered(StringTemplates.ERROR_OCCURED_IN_BLOCK.formatted(b.getLocalBlockId())));
             }

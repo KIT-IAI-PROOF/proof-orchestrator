@@ -1,8 +1,7 @@
 /*
- * Copyright (c) 2022
- * Karlsruhe Institute of Technology - Institute for Automation and Applied Informatics
+ * Copyright (c) 2025-2026
+ * Karlsruhe Institute of Technology - Institute for Automation and Applied Informatics (IAI)
  */
-
 package edu.kit.iai.webis.prooforchestrator.service;
 
 import edu.kit.iai.webis.prooforchestrator.config.OrchestrationConfig;
@@ -53,9 +52,7 @@ public class LocalProcessService {
             this.inputStream = new PipedInputStream();
             this.pipedOutputStream = new PipedOutputStream(this.inputStream);
         } catch (final Exception e) {
-//            final var message = StringTemplates.COULD_NOT_SETUP_MAIN_IO_PIPE_STREAMS;
-            LoggingHelper.error().log(e.getMessage());
-//            throw new IOInterfaceSetupException(message, e);
+            LoggingHelper.error().exception(e).log(e.getMessage());
         }
     }
 
@@ -82,35 +79,4 @@ public class LocalProcessService {
         }
     }
 
-    /**
-     * Stop a container for a specific block
-     *
-     * @param blockContainer Container of the block
-     * @param executionId    Execution id of the runtime
-     */
-    public void stopBlock(final BlockContainer blockContainer, final String executionId) {
-//        try {
-//            final var containerName = String.format(StringTemplates.CONTAINER_NAME_TEMPLATE,
-//                    blockContainer.getWorkflowId(), blockContainer.getLocalBlockId());
-//            final var deleteOptions = new DeleteOptions();
-//            this.client.delete(this.orchestrationConfig.getNameSpace().orElseThrow(), containerName, deleteOptions)
-//                    .throwsApiException().getObject();
-//            LoggingHelper.info()
-//                    .workflowId(blockContainer.getWorkflowId())
-//                    .executionId(executionId)
-//                    .eventType(EventType.CONTAINER_DELETED)
-//                    .log(StringTemplates.POD_DELETED);
-//        } catch (final ApiException e) {
-//            if (e.getCode() == 404) {
-//                LoggingHelper.info().executionId(executionId).workflowId(blockContainer.getWorkflowId())
-//                        .log("Already deleted");
-//            } else {
-//                LoggingHelper.error()
-//                        .workflowId(blockContainer.getWorkflowId())
-//                        .executionId(executionId)
-//                        .log(StringTemplates.COULD_NOT_DELETE_POD);
-//                throw new ContainerException(StringTemplates.COULD_NOT_DELETE_POD, e);
-//            }
-//        }
-    }
 }

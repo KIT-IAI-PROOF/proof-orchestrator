@@ -1,9 +1,8 @@
-package edu.kit.iai.webis.prooforchestrator.config;
-
 /*
- * Copyright (c) 2022
- * Karlsruhe Institute of Technology - Institute for Automation and Applied Informatics
+ * Copyright (c) 2025-2026
+ * Karlsruhe Institute of Technology - Institute for Automation and Applied Informatics (IAI)
  */
+package edu.kit.iai.webis.prooforchestrator.config;
 
 import org.apache.commons.lang3.builder.ToStringBuilder;
 import org.apache.commons.lang3.builder.ToStringStyle;

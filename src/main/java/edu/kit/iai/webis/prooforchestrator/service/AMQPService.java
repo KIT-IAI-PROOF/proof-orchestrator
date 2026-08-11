@@ -1,3 +1,7 @@
+/*
+ * Copyright (c) 2025-2026
+ * Karlsruhe Institute of Technology - Institute for Automation and Applied Informatics (IAI)
+ */
 package edu.kit.iai.webis.prooforchestrator.service;
 
 import edu.kit.iai.webis.prooforchestrator.io.MQInPort;
@@ -135,9 +139,9 @@ public class AMQPService {
     public void deleteAllServiceQueues() {
         this.queueNames.forEach(n -> {
             if (this.deleteServiceQueue(n)) {
-                LoggingHelper.info().log("Service Queue '" + n + "' deleted");
+                LoggingHelper.info().log("Service Queue '%s' deleted", n);
             } else {
-                LoggingHelper.error().log("Service Queue '" + n + "' could not be deleted");
+                LoggingHelper.error().log("Service Queue '%s' could not be deleted", n);
             }
         });
     }

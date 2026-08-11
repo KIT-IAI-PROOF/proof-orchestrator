@@ -1,8 +1,7 @@
 /*
- * Copyright (c) 2022
- * Karlsruhe Institute of Technology - Institute for Automation and Applied Informatics
+ * Copyright (c) 2025-2026
+ * Karlsruhe Institute of Technology - Institute for Automation and Applied Informatics (IAI)
  */
-
 package edu.kit.iai.webis.prooforchestrator.service;
 
 import static java.lang.Long.parseLong;
@@ -93,7 +92,8 @@ public class OrchestrationService {
         	this.execution = this.configManagerService.getExecution(executionId);
             SimulationStatus executionStatus = this.execution.getStatus();
 
-            if(executionStatus != SimulationStatus.UNKNOWN  // TODO is workaround, should be CREATED
+            // REFACTOR: this is workaround, should be CREATED
+            if(executionStatus != SimulationStatus.UNKNOWN
                 && executionStatus != SimulationStatus.READY
                 && executionStatus != SimulationStatus.SHUT_DOWN
                 && executionStatus != SimulationStatus.STOPPED
@@ -192,8 +192,6 @@ public class OrchestrationService {
     private void runWorkflow(final String executionId) {
 
         try {
-//            final WorkflowContainer workflowContainer = this.workflowContainerSupplier.getWorkflowContainer();
-            // Update status
             LoggingHelper.debug().workflowId(this.workflowService.getWorkflow().getName())
                     .log(StringTemplates.STARTED_WORKFLOW, this.workflowService.getWorkflow().getName());
 

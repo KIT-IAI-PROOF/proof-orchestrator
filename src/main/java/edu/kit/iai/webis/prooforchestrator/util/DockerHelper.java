@@ -1,3 +1,7 @@
+/*
+ * Copyright (c) 2025-2026
+ * Karlsruhe Institute of Technology - Institute for Automation and Applied Informatics (IAI)
+ */
 package edu.kit.iai.webis.prooforchestrator.util;
 
 import java.io.IOException;
@@ -38,7 +42,7 @@ public class DockerHelper {
 
     private final OrchestrationConfig orchestrationConfig;
 
-    @Value("${proof.volume}")
+    @Value("${proof.volume:proof-files}")
     private String filesVolumeName;
 
     /**
@@ -164,6 +168,7 @@ public class DockerHelper {
             Files.createDirectories(Path.of(workerLogDir));
             String workspaceDir = this.orchestrationConfig.getWorkspaceDir();
 
+            LoggingHelper.info().log("Using volume '%s' with location '%s' and logging dir: '%s'", this.filesVolumeName, workspaceDir, workerLogDir);
             for (Block block : workflow.getBlocks().values()) {
                 executor.submit(() -> {
                     String imageLocation = block.getContainerImage();
@@ -177,7 +182,7 @@ public class DockerHelper {
                     } catch (Exception ignored) {
 
                     }
-                    Bind pyFiles = new Bind("proof-files", new Volume(workspaceDir));
+                    Bind pyFiles = new Bind(this.filesVolumeName, new Volume(workspaceDir));
                     try {
                     	HostConfig hostConfig = HostConfig.newHostConfig()
                     			.withNetworkMode("proof")
@@ -188,7 +193,7 @@ public class DockerHelper {
                         StringBuilder dockerCmd = new StringBuilder("docker run -d");
                         dockerCmd.append(" --name ").append(name);
                         dockerCmd.append(" --network proof");
-                        dockerCmd.append(" -v proof-files:" + workspaceDir);
+                        dockerCmd.append(" -v " + this.filesVolumeName + ":" + workspaceDir);
                         for (String envVar : envVars) {
                             dockerCmd.append(" -e \"").append(envVar).append("\"");
                         }
