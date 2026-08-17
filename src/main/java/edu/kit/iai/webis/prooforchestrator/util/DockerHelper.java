@@ -116,6 +116,16 @@ public class DockerHelper {
         envVars.add("proof.worker.logging.logLevel=" + this.workerLoggingLevel);
         envVars.add("proof.worker.logging.directory=" + workerLogDir);
         envVars.add("app.name=" + block.getId());
+        
+        // Add input timeout configuration from workflow step-based configuration
+        if (workflow.getStepBasedConfig() != null) {
+            Long inputTimeout = workflow.getStepBasedConfig().getInputTimeout();
+            if (inputTimeout != null && inputTimeout > 0) {
+                LoggingHelper.debug().log("Using input timeout for worker '%s (Index: %d)': %d s", block.getName(), block.getIndex(), inputTimeout);
+                envVars.add("proof.worker.input.timeout=" + inputTimeout);
+            }
+        }
+        
         return envVars;
     }
 
@@ -248,9 +258,9 @@ public class DockerHelper {
                         }
                     	docker.startContainerCmd(container.getId()).exec();
                     	LoggingHelper.info().log("Container '%s' started", name);
-					} catch (NotFoundException e) {
-	                    LoggingHelper.error().log("Container image %s could not be started. Reason: %s", imageLocation, e.getMessage());
-					}
+					} catch (Exception e) {
+                        LoggingHelper.error().log("Container image %s could not be started. Reason: %s", imageLocation, e.getMessage());
+                    }
                 });
             }
 

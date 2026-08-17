@@ -9,6 +9,7 @@ import static java.lang.Long.parseLong;
 import java.util.List;
 import java.util.NoSuchElementException;
 
+import edu.kit.iai.webis.proofutils.model.SimulationStrategy;
 import org.springframework.amqp.rabbit.listener.adapter.MessageListenerAdapter;
 import org.springframework.amqp.support.converter.Jackson2JsonMessageConverter;
 import org.springframework.stereotype.Service;
@@ -84,7 +85,6 @@ public class OrchestrationService {
     /**
      * Prepare workflow before execution
      *
-     * @param configuration Configuration object for orchestration params
      * @param executionId   UUID of the execution process for a workflow to get from config server
      */
     public Execution prepareWorkflow(final String executionId) throws IllegalArgumentException {
@@ -241,6 +241,14 @@ public class OrchestrationService {
 
             this.statusHelper.setBlockStatus(blockId, blockStatus);
 
+            // As soon as no worker is still marked WAITING, the WAIT_AND_CONTINUE watchdog can be completed.
+            if (notifyMessage.getSimulationPhase()==SimulationPhase.EXECUTE
+                    &&this.workflowService.isWorkflowSimulationStrategy(SimulationStrategy.WAIT_AND_CONTINUE)
+                    && this.statusHelper.areAllStatus(SimulationStatus.EXECUTION_STEP_FINISHED)) {
+                LoggingHelper.debug().log("All Blocks are no longer WAITING, complete WAIT_AND_CONTINUE watchdog");
+                this.scheduleService.completeNotifyTimeout();
+            }
+            
             if (this.statusHelper.existsErrorSimulationStatus()
             		&& this.statusHelper.isError(blockStatus) )
             {
