@@ -25,7 +25,7 @@
         <gitHost>gitlab.kit.edu/</gitHost>
         <gitUserId>kit/iai/webis/proof2</gitUserId>
         <gitRepoId>proof-orchestrator</gitRepoId>
-        <config.manager.version>1.5.1-dev0</config.manager.version>
+        <config.manager.version>1.5.1-dev1</config.manager.version>
     </properties>
 
     <dependencies>
