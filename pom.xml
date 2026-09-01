@@ -12,7 +12,7 @@
 
     <groupId>edu.kit.iai.webis</groupId>
     <artifactId>proof-orchestrator</artifactId>
-    <version>4.8.12-dev0</version>
+    <version>4.8.12-dev1</version>
     <name>PROOF Orchestrator</name>
     <description>PROOF Orchestrator</description>
     <packaging>jar</packaging>
