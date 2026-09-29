@@ -146,6 +146,8 @@ public class OrchestrationService {
                     }
                     case DOCKER -> {
                         try {
+                            // Update the worker logging dir
+                            this.dockerHelper.updateWorkerLogDir(execution);
                             this.dockerHelper.processDockerExecution(workflow, executionId);
                         } catch (Exception e) {
                             LoggingHelper.error().log("ERROR processing docker! " + e.getMessage());
