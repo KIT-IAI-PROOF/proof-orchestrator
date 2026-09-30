@@ -97,12 +97,11 @@ public class DockerHelper {
      * @return the workerLoggingDir without placeholder
      */
     public String updateWorkerLogDir(Execution execution) {
-        LoggingHelper.debug().log("Input:\nformatStr: %s,\nLabel: %s,\nDate: %s,\nID: %s", this.workerLoggingDirFormatStr, execution.getName(), execution.getStartedAt(), execution.getId());
+        LoggingHelper.debug().log("Input:\nformatStr: %s,\nLabel: %s,\nID: %s", this.workerLoggingDirFormatStr, execution.getName(), execution.getId());
         Function<String, String> getPropertyOrNull = property -> (property == null ? "null" : property);
         String label = getPropertyOrNull.apply(execution.getName());
-        String date = getPropertyOrNull.apply(execution.getStartedAt());
         String id = getPropertyOrNull.apply(execution.getId());
-        String replaced = this.workerLoggingDirFormatStr.replace(CommonStringTemplates.PLACEHOLDER_EXECUTION_DATE, date);
+        String replaced = this.workerLoggingDirFormatStr.replace(CommonStringTemplates.PLACEHOLDER_EXECUTION_LABEL, label);
         this.workerLoggingDir = replaced.replace(CommonStringTemplates.PLACEHOLDER_EXECUTION_ID, id);
         LoggingHelper.debug().log("workerLoggingDir: %s", this.workerLoggingDir);
         return getWorkerLogDir();
