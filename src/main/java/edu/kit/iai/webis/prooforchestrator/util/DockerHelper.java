@@ -10,6 +10,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.function.Function;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -36,6 +37,7 @@ import edu.kit.iai.webis.proofutils.CommonStringTemplates;
 import edu.kit.iai.webis.proofutils.LoggingHelper;
 import edu.kit.iai.webis.proofutils.wrapper.Block;
 import edu.kit.iai.webis.proofutils.wrapper.Workflow;
+import edu.kit.iai.webis.proofutils.wrapper.Execution;
 
 @Component
 public class DockerHelper {
@@ -69,6 +71,7 @@ public class DockerHelper {
 	 * This environment variable is passed on to the start of the worker docker containers
 	 */
 	@Value("${proof.worker.logging.directory:/tmp/proof/logs}")
+	private String workerLoggingDirFormatStr;
 	private String workerLoggingDir;
 
     /**
@@ -83,15 +86,25 @@ public class DockerHelper {
 		this.orchestrationConfig = orchestrationConfig;
 	}
 
+    public String getWorkerLogDir() {
+        return this.workerLoggingDir;
+    }
+
     /**
-     * Get the logging directory for a worker based on the execution id.
-     * If a placeholder is used in the configuration, it is replaced and stored in the workerLoggingDir variable
-     * in the first call of this method.
-     * @param executionId Id of the execution.
+     * Update the logging directory for a worker based on the execution instance information.
+     * If a placeholder is used in the configuration, it is replaced and stored in the workerLoggingDir.
+     * @param execution Execution instace.
      * @return the workerLoggingDir without placeholder
      */
-    private String getWorkerLogDir(String executionId) {
-        return this.workerLoggingDir.replace(CommonStringTemplates.EXECUTION_ID_PLACEHOLDER, executionId);
+    public String updateWorkerLogDir(Execution execution) {
+        LoggingHelper.debug().log("Input:\nformatStr: %s,\nLabel: %s,\nID: %s", this.workerLoggingDirFormatStr, execution.getName(), execution.getId());
+        Function<String, String> getPropertyOrNull = property -> (property == null ? "null" : property);
+        String label = getPropertyOrNull.apply(execution.getName());
+        String id = getPropertyOrNull.apply(execution.getId());
+        String replaced = this.workerLoggingDirFormatStr.replace(CommonStringTemplates.PLACEHOLDER_EXECUTION_LABEL, label);
+        this.workerLoggingDir = replaced.replace(CommonStringTemplates.PLACEHOLDER_EXECUTION_ID, id);
+        LoggingHelper.debug().log("workerLoggingDir: %s", this.workerLoggingDir);
+        return getWorkerLogDir();
     }
 
 	/**
@@ -164,7 +177,7 @@ public class DockerHelper {
             ExecutorService executor = Executors.newFixedThreadPool(workflow.getBlocks().size());
 
             // Create the log directory for the workers to prevent errors when multiple workers try to create the same directory at the same time
-            String workerLogDir = this.getWorkerLogDir(executionID);
+            String workerLogDir = this.getWorkerLogDir();
             Files.createDirectories(Path.of(workerLogDir));
             String workspaceDir = this.orchestrationConfig.getWorkspaceDir();
 
