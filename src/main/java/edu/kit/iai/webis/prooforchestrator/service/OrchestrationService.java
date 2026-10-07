@@ -147,8 +147,7 @@ public class OrchestrationService {
                     case DOCKER -> {
                         try {
                             // Update the worker logging dir
-                            this.dockerHelper.updateWorkerLogDir(execution);
-                            this.dockerHelper.processDockerExecution(workflow, executionId);
+                            this.dockerHelper.processDockerExecution(workflow, execution);
                         } catch (Exception e) {
                             LoggingHelper.error().log("ERROR processing docker! " + e.getMessage());
                             // REFFACTOR:  BS.STOPPED oder ABORTED besser?

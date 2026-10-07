@@ -72,12 +72,6 @@ public class DockerHelper {
 	@Value("${proof.worker.logging.directory:/tmp/proof/logs}")
 	private String workerLoggingDir;
     
-	/**
-	 * the logging directory for the workers where all known placeholders are replaced.
-	 * This environment variable is passed on to the start of the worker docker containers
-	 */
-    private String workerLoggingDirFormatted;
-
     /**
      * the rabbitmq host of the worker.
      * Default is the same as the orchestrator's host, but can be set differently
@@ -91,19 +85,20 @@ public class DockerHelper {
 	}
 
     /**
-     * Update the logging directory for a worker based on the execution instance information.
-     * If a placeholder is used in the configuration, it is replaced and stored in the workerLoggingDir.
+     * Get the logging directory for a worker based on the execution instance information.
+     * If a placeholder is used in the configuration, it is replaced.
      * @param execution Execution instace.
-     * @return the workerLoggingDir without placeholder
+     * @return the workerLoggingDir with replaced placeholder
      */
-    public void updateWorkerLogDir(Execution execution) {
+    private String getWorkerLogDir(Execution execution) {
         LoggingHelper.debug().log("Input:\nworkerLogDir: %s,\nLabel: %s,\nID: %s", this.workerLoggingDir, execution.getName(), execution.getId());
         Function<String, String> getPropertyOrNull = property -> (property == null ? "null" : property);
         String label = getPropertyOrNull.apply(execution.getName());
         String id = getPropertyOrNull.apply(execution.getId());
-        String replaced = this.workerLoggingDir.replace(StringTemplates.PLACEHOLDER_EXECUTION_LABEL, label);
-        this.workerLoggingDirFormatted = replaced.replace(StringTemplates.PLACEHOLDER_EXECUTION_ID, id);
-        LoggingHelper.debug().log("Formatted workerLoggingDir: %s", this.workerLoggingDirFormatted);
+        String replaced = this.workerLoggingDir.replace(StringTemplates.PLACEHOLDER_EXECUTION_LABEL, label).
+            replace(StringTemplates.PLACEHOLDER_EXECUTION_ID, id);
+        LoggingHelper.debug().log("Formatted workerLoggingDir: %s", replaced);
+        return replaced;
     }
 
 	/**
@@ -162,9 +157,9 @@ public class DockerHelper {
     /**
      * process a workflow execution based on docker containers
      * @param workflow the workflow and its blocks to be started as docker containers
-     * @param executionID the workflow execution id
+     * @param execution the workflow execution instance
      */
-    public void processDockerExecution(Workflow workflow, String executionID) {
+    public void processDockerExecution(Workflow workflow, Execution execution) {
         try (DockerClient docker = DockerClientBuilder.getInstance()
                 .withDockerHttpClient(new ApacheDockerHttpClient.Builder()
                         .dockerHost(DefaultDockerClientConfig.createDefaultConfigBuilder()
@@ -176,11 +171,12 @@ public class DockerHelper {
             ExecutorService executor = Executors.newFixedThreadPool(workflow.getBlocks().size());
 
             // Create the log directory for the workers to prevent errors when multiple workers try to create the same directory at the same time
-            String workerLogDir = this.workerLoggingDirFormatted;
+            String workerLogDir = this.getWorkerLogDir(execution);
             Files.createDirectories(Path.of(workerLogDir));
             String workspaceDir = this.orchestrationConfig.getWorkspaceDir();
 
             LoggingHelper.info().log("Using volume '%s' with location '%s' and logging dir: '%s'", this.filesVolumeName, workspaceDir, workerLogDir);
+            String executionID = execution.getId();
             for (Block block : workflow.getBlocks().values()) {
                 executor.submit(() -> {
                     String imageLocation = block.getContainerImage();
