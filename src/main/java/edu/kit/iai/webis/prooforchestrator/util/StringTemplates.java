@@ -66,8 +66,10 @@ public class StringTemplates {
     public static final String ALL_BLOCKS_ARE_SHUT_DOWN = "All Blocks are SHUT DOWN";
     public static final String ERROR_OCCURED_IN_BLOCK = "ERROR occured in Block %s";
 
-
     public static final String BLOCK_SHUTDOWN_RELEVANCE = "shutdownRelevance";
+
+    public static final String PLACEHOLDER_EXECUTION_ID = "%EXEC_ID";
+    public static final String PLACEHOLDER_EXECUTION_LABEL = "%EXEC_LABEL";
 
     private final static char STAR = '*';
     private final static char BLNK = ' ';
