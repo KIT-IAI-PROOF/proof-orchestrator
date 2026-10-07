@@ -33,7 +33,6 @@ import com.github.dockerjava.httpclient5.ApacheDockerHttpClient;
 
 import edu.kit.iai.webis.prooforchestrator.config.OrchestrationConfig;
 import edu.kit.iai.webis.proofutils.Colors;
-import edu.kit.iai.webis.proofutils.CommonStringTemplates;
 import edu.kit.iai.webis.proofutils.LoggingHelper;
 import edu.kit.iai.webis.proofutils.wrapper.Block;
 import edu.kit.iai.webis.proofutils.wrapper.Workflow;
@@ -102,8 +101,8 @@ public class DockerHelper {
         Function<String, String> getPropertyOrNull = property -> (property == null ? "null" : property);
         String label = getPropertyOrNull.apply(execution.getName());
         String id = getPropertyOrNull.apply(execution.getId());
-        String replaced = this.workerLoggingDir.replace(CommonStringTemplates.PLACEHOLDER_EXECUTION_LABEL, label);
-        this.workerLoggingDirFormatted = replaced.replace(CommonStringTemplates.PLACEHOLDER_EXECUTION_ID, id);
+        String replaced = this.workerLoggingDir.replace(StringTemplates.PLACEHOLDER_EXECUTION_LABEL, label);
+        this.workerLoggingDirFormatted = replaced.replace(StringTemplates.PLACEHOLDER_EXECUTION_ID, id);
         LoggingHelper.debug().log("Formatted workerLoggingDir: %s", this.workerLoggingDirFormatted);
     }
 
