@@ -1,0 +1,54 @@
+{
+  "id": "2d9d69b0-364c-4fbd-9adc-bd1a0fa8e961",
+  "name": "ts_transformer",
+  "description": "",
+  "inputs": [
+    {
+      "name": "input",
+      "type": "json",
+      "stepId": 1,
+      "eventId": 1,
+      "communicationType": "STEPBASED",
+      "metadata": {}
+    }
+  ],
+  "outputs": [
+    {
+      "name": "output",
+      "type": "json",
+      "stepId": 1,
+      "eventId": 1,
+      "communicationType": "STEPBASED",
+      "metadata": {}
+    }
+  ],
+  "containerImage": "iai-artifactory.iai.kit.edu/docker-webis/proof-2/proof-standard:latest",
+  "communicationParadigm": "STEPBASED",
+  "programId": "91eff62a-4e1f-42e3-b76e-d024703dfdbe",
+  "startParameters": {},
+  "eventLifeCycles": [],
+  "stepLifeCycles": [
+    {
+      "id": 1,
+      "type": "STEP",
+      "input": {
+        "type": "STDIO",
+        "parameters": {
+          "mapping": {
+            "input": "input"
+          }
+        }
+      },
+      "output": {
+        "type": "STDIO",
+        "parameters": {
+          "mapping": {
+            "output": "output"
+          }
+        }
+      }
+    }
+  ],
+  "context": {},
+  "metadata": {}
+}

@@ -1,0 +1,8 @@
+{
+  "id": "transfor-merf-42e3-b76e-d02472r1t1w",
+  "name": "ts_transformer",
+  "description": "modify ts data",
+  "tag": "test",
+  "runtime": "PYTHON",
+  "path": "import/ts_transformer_2r1t1w.py"
+}

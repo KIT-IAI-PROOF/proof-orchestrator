@@ -1,0 +1,68 @@
+{
+  "_class": "edu.kit.iai.webis.proofmodels.Workflow",
+  "id": "1r1t2w40-30e2-47fe-8ff0-7f69f61b3eee",
+  "name": "Test",
+  "description": "Test",
+  "blocks": [
+    {
+      "localId": 0,
+      "globalId": "readerb0-364c-4fbd-9adc-bd1a01r1t2w1",
+      "blockMetadata": {}
+    },
+    {
+      "localId": 1,
+      "globalId": "writerb4-42db-4d22-9f70-d65b31r1t2w1",
+      "blockMetadata": {}
+    },
+    {
+      "localId": 2,
+      "globalId": "transfor-merc-4fbd-9adc-bd1a01r1t2w1",
+      "blockMetadata": {}
+    },
+    {
+      "localId": 3,
+      "globalId": "writerb4-42db-4d22-9f70-d65b31r1t2w2",
+      "blockMetadata": {}
+    }
+  ],
+  "connections": [
+    {
+      "inbound": {
+        "blockId": 0,
+        "portName": "output"
+      },
+      "outbound": {
+        "blockId": 2,
+        "portName": "input"
+      }
+    },
+    {
+      "inbound": {
+        "blockId": 2,
+        "portName": "output"
+      },
+      "outbound": {
+        "blockId": 1,
+        "portName": "input"
+      }
+    },
+    {
+      "inbound": {
+        "blockId": 2,
+        "portName": "output"
+      },
+      "outbound": {
+        "blockId": 3,
+        "portName": "input"
+      }
+    }
+  ],
+  "stepBasedConfig": {
+    "start": 0,
+    "end": 0,
+    "duration": 30000,
+    "stepSizes": {}
+  },
+  "communicationParadigm": "STEPBASED",
+  "asyncAction": "IGNORE"
+}

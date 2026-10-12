@@ -1,0 +1,116 @@
+/*
+ * Copyright (c) 2022
+ * Karlsruhe Institute of Technology - Institute for Automation and Applied Informatics
+ */
+
+package edu.kit.iai.webis.prooforchestrator.service;
+
+import edu.kit.iai.webis.prooforchestrator.config.OrchestrationConfig;
+import edu.kit.iai.webis.prooforchestrator.container.BlockContainer;
+import edu.kit.iai.webis.prooforchestrator.exception.ContainerException;
+import edu.kit.iai.webis.proofutils.Executor;
+import edu.kit.iai.webis.proofutils.LoggingHelper;
+import org.springframework.stereotype.Service;
+
+import java.io.PipedInputStream;
+import java.io.PipedOutputStream;
+
+/**
+ * Service class for a local container orchestration based on background processes
+ */
+@Service
+public class LocalProcessService {
+
+    private final OrchestrationConfig orchestrationConfig;
+    private final Executor executor;
+
+    private PipedOutputStream outputStream;
+    private PipedInputStream inputStream;
+    private PipedInputStream pipedInputStream;
+    private PipedOutputStream pipedOutputStream;
+
+
+    public LocalProcessService(final OrchestrationConfig orchestrationConfig, final Executor executor) {
+        this.orchestrationConfig = orchestrationConfig;
+        this.executor = executor;
+//        try {
+        LoggingHelper.debug().log("Running local ... ");//: " + orchestrationConfig.getInCluster());
+
+//        } catch (final Exception e) {
+//            final var message = StringTemplates.COULD_NOT_CREATE_K_8_S_API_CLIENT;
+//            LoggingHelper.error().log(message);
+//        }
+        this.setupIOStreams();
+    }
+
+    /**
+     * Setup input and output pipe stream for the connection to the executed program
+     */
+    private void setupIOStreams() {
+        try {
+            this.outputStream = new PipedOutputStream();
+            this.pipedInputStream = new PipedInputStream(this.outputStream);
+            this.inputStream = new PipedInputStream();
+            this.pipedOutputStream = new PipedOutputStream(this.inputStream);
+        } catch (final Exception e) {
+//            final var message = StringTemplates.COULD_NOT_SETUP_MAIN_IO_PIPE_STREAMS;
+            LoggingHelper.error().log(e.getMessage());
+//            throw new IOInterfaceSetupException(message, e);
+        }
+    }
+
+    /**
+     * Start a container for a specific block
+     *
+     * @param blockContainer Container of the block
+     * @param executionId    Execution id of the runtime
+     */
+    public void startProcess(final String command) {
+
+//    	blockContainer.addEnvironmentVars( this.orchestrationConfig.getRabbitAndElasticConfig() );
+//    	if( LoggingHelper.isLevelDebugOrTrace()) {
+//			LoggingHelper.printHashMapContents(blockContainer.getEnvironmentVars(), System.out, "Environmental Variables read from application-dev.yaml");
+//		}
+
+        try {
+            LoggingHelper.info().log("executing Workflow with command script %s ", command);
+            this.executor.execute(command, this.inputStream, this.outputStream);
+
+        } catch (final Exception e) {
+            LoggingHelper.error().exception(e).log("run script could not be started, reason: ");
+            throw new ContainerException("run script could not be started", e);
+        }
+    }
+
+    /**
+     * Stop a container for a specific block
+     *
+     * @param blockContainer Container of the block
+     * @param executionId    Execution id of the runtime
+     */
+    public void stopBlock(final BlockContainer blockContainer, final String executionId) {
+//        try {
+//            final var containerName = String.format(StringTemplates.CONTAINER_NAME_TEMPLATE,
+//                    blockContainer.getWorkflowId(), blockContainer.getLocalBlockId());
+//            final var deleteOptions = new DeleteOptions();
+//            this.client.delete(this.orchestrationConfig.getNameSpace().orElseThrow(), containerName, deleteOptions)
+//                    .throwsApiException().getObject();
+//            LoggingHelper.info()
+//                    .workflowId(blockContainer.getWorkflowId())
+//                    .executionId(executionId)
+//                    .eventType(EventType.CONTAINER_DELETED)
+//                    .log(StringTemplates.POD_DELETED);
+//        } catch (final ApiException e) {
+//            if (e.getCode() == 404) {
+//                LoggingHelper.info().executionId(executionId).workflowId(blockContainer.getWorkflowId())
+//                        .log("Already deleted");
+//            } else {
+//                LoggingHelper.error()
+//                        .workflowId(blockContainer.getWorkflowId())
+//                        .executionId(executionId)
+//                        .log(StringTemplates.COULD_NOT_DELETE_POD);
+//                throw new ContainerException(StringTemplates.COULD_NOT_DELETE_POD, e);
+//            }
+//        }
+    }
+}

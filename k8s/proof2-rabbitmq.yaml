@@ -1,0 +1,92 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: proof2-rabbitmq-service
+  labels:
+    iai.kit.edu/app: proof2-rabbitmq
+spec:
+  type: LoadBalancer
+  ports:
+    - name: "tcp"
+      port: 5672
+      targetPort: 5672
+    - name: "http"
+      port: 15672
+      targetPort: 15672
+  selector:
+    iai.kit.edu/app: proof2-rabbitmq
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: proof2-rabbitmq
+  labels:
+    iai.kit.edu/app: proof2-rabbitmq
+spec:
+  replicas: 1
+  serviceName: proof2-rabbitmq
+  selector:
+    matchLabels:
+      iai.kit.edu/app: proof2-rabbitmq
+  template:
+    metadata:
+      labels:
+        iai.kit.edu/app: proof2-rabbitmq
+    spec:
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: proof2-rabbitmq-data
+      containers:
+        - name: proof2-rabbitmq
+          image: rabbitmq:3-management
+          volumeMounts:
+            - mountPath: /var/lib/rabbitmq
+              name: data
+          ports:
+            - containerPort: 5672
+              protocol: TCP
+            - containerPort: 15672
+              protocol: TCP
+          resources:
+            limits:
+              cpu: 500m
+              memory: 2Gi
+            requests:
+              cpu: 500m
+              memory: 2Gi
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: proof2-rabbitmq-ingress
+  annotations:
+    traefik.ingress.kubernetes.io/router.middlewares: traefik2-redirect-to-https@kubernetescrd
+  labels:
+    iai.kit.edu/app: proof2-rabbitmq
+spec:
+  rules:
+    - host: proof2-rabbitmq.cloud.iai.kit.edu
+      http:
+        paths:
+          - backend:
+              service:
+                name: proof2-rabbitmq-service
+                port:
+                  number: 15672
+            path: /
+            pathType: Prefix
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: proof2-rabbitmq-data
+  labels:
+    iai.kit.edu/app: proof2-rabbitmq
+spec:
+  storageClassName: shared
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 10Gi
