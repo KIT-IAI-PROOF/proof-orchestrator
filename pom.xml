@@ -6,7 +6,7 @@
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>3.5.8</version>
+        <version>3.5.16</version>
         <relativePath />
     </parent>
 
@@ -18,9 +18,7 @@
     <packaging>jar</packaging>
 
     <properties>
-        <java.version>21</java.version>
-        <maven.compiler.source>21</maven.compiler.source>
-        <maven.compiler.target>21</maven.compiler.target>
+        <maven.compiler.release>21</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <gitHost>github.com/</gitHost>
         <gitUserId>KIT-IAI-PROOF</gitUserId>
@@ -39,17 +37,13 @@
             <artifactId>spring-boot-starter-web</artifactId>
         </dependency>
         <dependency>
-            <groupId>org.springframework.security</groupId>
-            <artifactId>spring-security-messaging</artifactId>
-        </dependency>
-        <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-oauth2-client</artifactId>
         </dependency>
-        <dependency>
+        <!--dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-webflux</artifactId>
-        </dependency>
+        </dependency-->
         <dependency>
             <groupId>edu.kit.iai.webis.proof</groupId>
             <artifactId>proof-utils</artifactId>
@@ -70,20 +64,21 @@
             <scope>test</scope>
         </dependency>
         <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-data-elasticsearch</artifactId>
+            <groupId>org.springframework.data</groupId>
+            <artifactId>spring-data-commons</artifactId>
+            <version>3.5.13</version>
         </dependency>
         <dependency>
             <groupId>io.netty</groupId>
             <artifactId>netty-resolver-dns-native-macos</artifactId>
             <classifier>osx-aarch_64</classifier>
-            <version>4.1.112.Final</version>
+            <version>4.2.18.Final</version>
         </dependency>
 		<!-- OpenAPI -->
         <dependency>
             <groupId>org.springdoc</groupId>
             <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
-            <version>2.3.0</version>
+            <version>2.6.0</version>
         </dependency>
 		<!-- Additional stuff -->
         <dependency>
@@ -93,31 +88,27 @@
         <dependency>
             <groupId>com.github.docker-java</groupId>
             <artifactId>docker-java</artifactId>
-            <version>3.5.3</version>
+            <version>3.7.1</version>
         </dependency>
         <dependency>
             <groupId>com.github.docker-java</groupId>
             <artifactId>docker-java-transport-httpclient5</artifactId>
-            <version>3.5.3</version>
+            <version>3.7.1</version>
         </dependency>
         <dependency>
             <groupId>org.springframework.amqp</groupId>
             <artifactId>spring-rabbit</artifactId>
+            <version>3.2.12</version>
         </dependency>
         <dependency>
             <groupId>org.apache.commons</groupId>
             <artifactId>commons-configuration2</artifactId>
-            <version>2.12.0</version>
-        </dependency>
-        <dependency>
-            <groupId>commons-beanutils</groupId>
-            <artifactId>commons-beanutils</artifactId>
-            <version>1.11.0</version>
+            <version>2.15.1</version>
         </dependency>
         <dependency>
             <groupId>io.kubernetes</groupId>
             <artifactId>client-java</artifactId>
-            <version>24.0.0</version>
+            <version>27.0.0</version>
         </dependency>
     </dependencies>
 
@@ -126,7 +117,7 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
-                <version>3.14.1</version>
+                <version>3.16.0</version>
                 <configuration>
                     <excludes>
                         <exclude>generated/**</exclude>
@@ -136,7 +127,7 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
-                <version>3.5.4</version>
+                <version>3.6.0</version>
                 <configuration>
                     <argLine>-ea -XX:+EnableDynamicAgentLoading -Xshare:off</argLine>
                 </configuration>
@@ -144,7 +135,7 @@
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
-                <version>3.5.8</version>
+                <version>3.5.16</version>
                 <configuration>
                     <jmxPort>9009</jmxPort>
                     <jvmArguments>-ea -XX:+EnableDynamicAgentLoading -Xshare:off</jvmArguments>
@@ -191,7 +182,7 @@
             <plugin>
                 <groupId>org.openapitools</groupId>
                 <artifactId>openapi-generator-maven-plugin</artifactId>
-                <version>7.10.0</version>
+                <version>7.25.0</version>
                 <executions>
                     <execution>
                         <id>gen-typescript</id>
@@ -206,11 +197,11 @@
                             <inputSpec>${project.build.directory}/api.json</inputSpec>
                             <output>${project.basedir}/generated/typescript</output>
                             <generatorName>typescript-axios</generatorName>
-                            <templateDirectory>${project.basedir}/openapi-templates/typescript-axios</templateDirectory>
                             <gitHost>${gitHost}</gitHost>
                             <gitUserId>${gitUserId}</gitUserId>
                             <gitRepoId>${gitRepoId}</gitRepoId>
                             <additionalProperties>
+                                <additionalProperty>axiosVersion=1.18.1</additionalProperty>
                                 <additionalProperty>apiPackage=api</additionalProperty>
                                 <additionalProperty>modelPackage=model</additionalProperty>
                                 <additionalProperty>withSeparateModelsAndApi=true</additionalProperty>
@@ -275,7 +266,7 @@
             <plugin>
                 <groupId>com.google.cloud.tools</groupId>
                 <artifactId>jib-maven-plugin</artifactId>
-                <version>3.4.6</version>
+                <version>3.5.2</version>
                 <configuration>
                     <container>
                         <creationTime>USE_CURRENT_TIMESTAMP</creationTime>
