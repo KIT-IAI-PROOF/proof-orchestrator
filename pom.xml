@@ -135,7 +135,7 @@
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
-                <version>3.5.16</version>
+                <version>${project.parent.version}</version>
                 <configuration>
                     <jmxPort>9009</jmxPort>
                     <jvmArguments>-ea -XX:+EnableDynamicAgentLoading -Xshare:off</jvmArguments>
