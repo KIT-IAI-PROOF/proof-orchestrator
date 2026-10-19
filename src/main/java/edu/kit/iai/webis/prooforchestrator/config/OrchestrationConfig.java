@@ -67,6 +67,13 @@ public class OrchestrationConfig {
 	@Value("${proof.worker.logging.directory:/tmp/proof/logs}")
 	private String workerLoggingDir;
 
+   /**
+    * Timeout used by the orchestrator while waiting for notify messages from workers.
+    * The value is interpreted as seconds.
+    */
+   @Value("${proof.worker.timeout:${proof.orchestration.worker.timeout:10}}")
+   private Long workerTimeout;
+
     /**
      * The PROOF workspace, the area where all data will be located to run a workflow. Default is '/tmp/proof'
      */
@@ -87,7 +94,7 @@ public class OrchestrationConfig {
     private String userdataDir;
 
     /**
-     * Optional run script to be performed to start the workers
+     * Optional run script to be performed to start the workers  @TODO necessary?
      */
     @Value("${proof.orchestration.run.script:#{null}}")
     private Optional<String> runScript;
@@ -104,6 +111,21 @@ public class OrchestrationConfig {
                 Map.entry("spring.rabbitmq.username", this.rabbitUsername),
                 Map.entry("spring.rabbitmq.password", this.rabbitPassword)));
     }
+
+  /**
+   * Builds a worker environment map containing the configured timeout values.
+   * The timeout is propagated under the orchestration key `proof.orchestration.worker.timeout` and interpreted as seconds.
+   * @return a map with timeout-related worker configuration entries, or an empty map if disabled
+   */
+  public Map<String, String> getWorkerTimeoutConfig() {
+		if (this.workerTimeout == null || this.workerTimeout <= 0) {
+			return new HashMap<>();
+		}
+
+		return new HashMap<>(Map.ofEntries(
+				Map.entry("proof.orchestration.worker.timeout", String.valueOf(this.workerTimeout))
+		));
+	}
 
     public Optional<String> getNameSpace() {
         return this.nameSpace;
@@ -138,4 +160,14 @@ public class OrchestrationConfig {
 	public String getWorkerLoggingDir() {
 		return this.workerLoggingDir;
 	}
+
+  /**
+   * Returns the configured worker timeout value.
+   * The value is interpreted as seconds and converted to milliseconds where needed.
+   *
+   * @return the configured timeout in seconds, or {@code null} / non-positive when disabled
+   */
+  public Long getWorkerTimeout() {
+    return this.workerTimeout;
+  }
 }

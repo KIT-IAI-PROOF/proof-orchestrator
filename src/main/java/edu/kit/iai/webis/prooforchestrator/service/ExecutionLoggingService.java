@@ -76,7 +76,7 @@ public class ExecutionLoggingService {
         }
 
         // Declare queue and bind to exchange
-        Queue queue = QueueBuilder.durable(queueName).build();
+        Queue queue = QueueBuilder.durable(queueName).stream().build();
         TopicExchange exchange = new TopicExchange("logs");
         Binding binding = BindingBuilder.bind(queue).to(exchange).with(queueName);
         
