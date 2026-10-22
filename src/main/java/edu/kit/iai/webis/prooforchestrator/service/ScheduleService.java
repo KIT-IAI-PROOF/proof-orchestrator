@@ -6,10 +6,12 @@ package edu.kit.iai.webis.prooforchestrator.service;
 
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
 import org.springframework.stereotype.Service;
 
+import edu.kit.iai.webis.prooforchestrator.config.OrchestrationConfig;
 import edu.kit.iai.webis.prooforchestrator.exception.ScheduleException;
 import edu.kit.iai.webis.prooforchestrator.util.StatusHelper;
 import edu.kit.iai.webis.prooforchestrator.util.StringTemplates;
@@ -17,6 +19,7 @@ import edu.kit.iai.webis.proofutils.LoggingHelper;
 import edu.kit.iai.webis.proofutils.io.MQSyncProducer;
 import edu.kit.iai.webis.proofutils.model.SimulationPhase;
 import edu.kit.iai.webis.proofutils.model.SimulationStatus;
+import edu.kit.iai.webis.proofutils.model.SimulationStrategy;
 
 
 @Service
@@ -29,8 +32,20 @@ public class ScheduleService {
     // Delay to be used to schedule createCheckTask when shutting down
     private final Integer SHUTDOWN_DELAY = 1000;   // [ms]
 
+    /**
+     * Scheduled timeout task for the notify watchdog.
+     * It is canceled as soon as all worker Notify messages have been received.
+     */
+    private ScheduledFuture<?> notifyTimeoutTask = null;
+    /**
+     * Timestamp of the first execution step that is waiting for Notify messages.
+     * Used to report the elapsed waiting time when the last Notify arrives or when a timeout happens.
+     */
+    private Long notifyTimeoutStartedAt = null;
+
     public ScheduleService(final MQSyncProducer mqSyncProducer,
-                           final StatusHelper statusHelper) {
+                           final StatusHelper statusHelper,
+                           final OrchestrationConfig orchestrationConfig) {
         this.mqSyncProducer = mqSyncProducer;
         this.statusHelper = statusHelper;
     }
@@ -61,9 +76,79 @@ public class ScheduleService {
      * Stop the executor
      */
     public void stop() {
+        // Stop the notify watchdog first so no delayed shutdown action can fire after the scheduler stops.
+        this.cancelNotifyTimeout();
         if (this.executor != null) {
             this.executor.shutdownNow();
         }
+    }
+
+    /**
+     * Cancels the notify watchdog without logging a completion message.
+     * This is used when scheduling moves on for unrelated reasons, such as shutdown or finalize.
+     */
+    public synchronized void cancelNotifyTimeout() {
+        if (this.notifyTimeoutTask != null) {
+            this.notifyTimeoutTask.cancel(false);
+            this.notifyTimeoutTask = null;
+        }
+        this.notifyTimeoutStartedAt = null;
+    }
+
+    /**
+     * Completes the notify watchdog after the last worker has replied.
+     * The elapsed waiting time is logged before the watchdog state is cleared.
+     */
+    public synchronized void completeNotifyTimeout() {
+        if (this.notifyTimeoutStartedAt != null) {
+            final long elapsedMillis = Math.max(0L, System.currentTimeMillis() - this.notifyTimeoutStartedAt);
+            LoggingHelper.info().log("Orchestrator received all Notify messages after %d ms", elapsedMillis);
+        }
+        this.cancelNotifyTimeout();
+    }
+
+    /**
+     * Starts a timeout watchdog after sync messages were sent (for the WAIT_AND_CONTINUE strategy).
+     * If not all workers have reported back before the configured timeout elapses, the workflow is shut down.
+     */
+    private synchronized void startNotifyTimeout(final WorkflowService workflowService) {
+        this.cancelNotifyTimeout();
+
+        if (!workflowService.isWorkflowSimulationStrategy(SimulationStrategy.WAIT_AND_CONTINUE)) {
+            return;
+        }
+
+        final Long workerTimeout = workflowService.getWorkflow().getStepBasedConfig().getWorkerTimeout();
+        if (workerTimeout == null || workerTimeout <= 0) {
+            LoggingHelper.debug().log("notify watchdog disabled because proof.orchestration.worker.timeout is not set");
+            return;
+        }
+
+        final long workerTimeoutMillis = TimeUnit.SECONDS.toMillis(workerTimeout);
+        LoggingHelper.info().log("notify watchdog started with timeout %d ms", workerTimeoutMillis);
+        this.notifyTimeoutStartedAt = System.currentTimeMillis();
+
+        this.notifyTimeoutTask = this.executor.schedule(() -> {
+            final Long startedAt = ScheduleService.this.notifyTimeoutStartedAt;
+            synchronized (ScheduleService.this) {
+                if (ScheduleService.this.notifyTimeoutTask == null) {
+                    return;
+                }
+
+                // If no worker is still waiting, a Notify message already completed the cycle.
+                if (!ScheduleService.this.statusHelper.isAnyStatus(SimulationStatus.WAITING)) {
+                    ScheduleService.this.notifyTimeoutTask = null;
+                    return;
+                }
+
+                ScheduleService.this.notifyTimeoutTask = null;
+            }
+
+            // The timeout expired while at least one worker was still waiting.
+            final long elapsedMillis = startedAt == null ? workerTimeoutMillis : Math.max(0L, System.currentTimeMillis() - startedAt);
+            LoggingHelper.error().log(LoggingHelper.printStarBordered("Orchestrator error: Notify timeout reached after %d ms -> sending SHUTDOWN to all workers".formatted(elapsedMillis)));
+            workflowService.sendSyncMessage(ScheduleService.this.mqSyncProducer, SimulationPhase.SHUTDOWN);
+        }, workerTimeoutMillis, TimeUnit.MILLISECONDS);
     }
 
     /**
@@ -90,27 +175,35 @@ public class ScheduleService {
                         LoggingHelper.error().workflowId(workflowService.getWorkflow().getId())
                                 .log("Error block status is found! NO more SyncMessage will be sent! => sending SHUTDOWN to all blocks");
                         triggerShutdownBlocks = true;
+                        ScheduleService.this.cancelNotifyTimeout();
                     }
                     if (ScheduleService.this.statusHelper.areAllStatus(SimulationStatus.SHUT_DOWN)) {
                     	LoggingHelper.info().log("---> all blocks are shut down => stopping execution");
                     	executor.shutdownNow();
+                        ScheduleService.this.cancelNotifyTimeout();
                     	return;
                     }
                     else if (ScheduleService.this.statusHelper.isAnyStatus(SimulationStatus.SHUT_DOWN))
                     {
                     	LoggingHelper.info().log("a block has shut down => sending SHUTDOWN SYNC to all Blocks ...");
                         triggerShutdownBlocks = true;
+                        ScheduleService.this.cancelNotifyTimeout();
                     }
+//TODO: schauen, ob Queues auch bei IGNORE abgebaut werden
+                    // RL TODO Test
                     else if (ScheduleService.this.statusHelper.areAllStatus(SimulationStatus.FINALIZED)) {
                     	LoggingHelper.info().log("All block containers have finalized, sending  SHUTDOWN SYNC message!");
                         triggerShutdownBlocks = true;
+                        ScheduleService.this.cancelNotifyTimeout();
                     }
                     else if (ScheduleService.this.statusHelper.isAnyStatus(SimulationStatus.FINALIZED)) {
                         LoggingHelper.info().log("One or more block containers have finalized, sending SHUTDOWN SYNC message!");
                         triggerShutdownBlocks = true;
+                        ScheduleService.this.cancelNotifyTimeout();
                     }
                     else if (ScheduleService.this.statusHelper.areAllStatus(SimulationStatus.EXECUTION_FINISHED)) {
                     	LoggingHelper.info().log(StringTemplates.ALL_BLOCKS_ARE_EXECUTION_FINISHED);
+                        ScheduleService.this.cancelNotifyTimeout();
                     	workflowService.sendSyncMessage(
                     			ScheduleService.this.mqSyncProducer,
                     			SimulationPhase.FINALIZE);
@@ -118,7 +211,8 @@ public class ScheduleService {
                     else if (ScheduleService.this.statusHelper.isAnyStatus(SimulationStatus.EXECUTION_FINISHED)) {
                     	if (ScheduleService.this.statusHelper.hasAShutdownRelevantBlockTheStatus(SimulationStatus.EXECUTION_FINISHED)) {
                     		LoggingHelper.info().log("A Block that is relevant for a workflow shutdown has finished its execution. Finalizing ...");
-                    		workflowService.sendSyncMessage(ScheduleService.this.mqSyncProducer, SimulationPhase.FINALIZE);
+                            ScheduleService.this.cancelNotifyTimeout();
+                            workflowService.sendSyncMessage(ScheduleService.this.mqSyncProducer, SimulationPhase.FINALIZE);
                     	}
                     	else {
                     		LoggingHelper.info().log("One or more blocks that are not relevant for a workflow shutdown has finished their execution");
@@ -174,6 +268,9 @@ public class ScheduleService {
                         workflowService.sendSyncMessage(
                         		ScheduleService.this.mqSyncProducer,
                         		SimulationPhase.EXECUTE);
+                        if (workflowService.isWorkflowSimulationStrategy(SimulationStrategy.WAIT_AND_CONTINUE)) {
+                            ScheduleService.this.startNotifyTimeout(workflowService);
+                        }
                     } //else
 
                     if (triggerShutdownBlocks && !shuttingDown ) {
@@ -219,6 +316,9 @@ public class ScheduleService {
                                     || ScheduleService.this.statusHelper.areAllStatus(SimulationStatus.INITIALIZED)) {
                                 LoggingHelper.info().log(StringTemplates.ALL_BLOCKS_COMPLETE_DOING_STEP);
                                 workflowService.sendSyncMessage(this.mqSyncProducer, SimulationPhase.EXECUTE);
+                                if (workflowService.isWorkflowSimulationStrategy(SimulationStrategy.WAIT_AND_CONTINUE)) {
+                                    ScheduleService.this.startNotifyTimeout(workflowService);
+                                }
                             } else {// Skip step and wait until all blocks finish their tasks and send back notify
                                 // messages
                                 LoggingHelper.info().log(methodName

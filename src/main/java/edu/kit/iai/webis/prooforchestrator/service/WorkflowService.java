@@ -213,6 +213,8 @@ public class WorkflowService {
     		if( blockContainer.getStatus() == SimulationStatus.RETRY ) {
     			blockContainer.setSimulationCommunicationPoint(this.currentCommunicationPoint - 1);  // CP was increased last SYNC
     	    	LoggingHelper.debug().log("BlockContainer %d: Status=%s, CP=%d (reduced)", (this.currentCommunicationPoint - 1), blockContainer.getStatus(), blockContainer.getIndex() );
+
+    			//this.statusHelper.setBlockStatus(blockContainer, SimulationStatus.READY);sonst kann kein SYNC gesendet werden
     		}
     	}
     }
@@ -226,7 +228,9 @@ public class WorkflowService {
      */
     private boolean checkSimulationEndReached(final MQSyncProducer syncProducer,
     		final SimulationPhase simulationPhase,
-    		final SyncMessage syncMessage) {
+    		final SyncMessage syncMessage)
+    {// TODO: switch-Case ...
+        // for all simulation phases except FINALIZE and SHUTDOWN:  FINALIZE, when end point is reached
         if( simulationPhase != SimulationPhase.FINALIZE && simulationPhase != SimulationPhase.SHUTDOWN ) {
         	if( this.currentCommunicationPoint >= this.maxBlockEndPoint || this.currentCommunicationPoint >= this.endPoint ) {
         		LoggingHelper.info().log("maximal endpoint reached for a block (max=%d) or the whole workflow (%d)-> finalizing workflow ... ",
@@ -282,6 +286,9 @@ public class WorkflowService {
         	LoggingHelper.debug().log("simulation end reached!");
 			return;
 		}
+
+        // TODO hier muss noch der Fall betrachtet werden, dass ein nicht shutdownrelevanter Block FINISHED ist
+        // und danach ein Finalize bekommt bzw, keinen EXECUTE mehr bekommen darf.
 
         if( this.simulationStrategy == SimulationStrategy.WAIT_AND_RETRY
         	&& this.statusHelper.isAnyStatus(SimulationStatus.RETRY) )
@@ -425,6 +432,7 @@ public class WorkflowService {
         this.blockContainerMap.values().parallelStream().forEach(blockContainer -> {
             blockContainer.setStatus(SimulationStatus.ABORTED);
 
+            // Check dry run and delete container
             if (kubernetesService != null) {
                 kubernetesService.stopBlock(blockContainer, this.executionId);
             }
@@ -465,7 +473,7 @@ public class WorkflowService {
                     blockContainer.setConfiguration(this.workflow.getStepBasedConfig());
 
                     /**
-                     * REFACTOR: is this still necessary?
+                     * TODO: REFACTOR: is this still necessary?
                      * The 'old' setting of the application-dev.yaml contents is done via autoWiring at the only location,
                      * where it is required:
                      * => prooforchestrator.config.OrchestrationConfig, used at prooforchestrator.service.KubernetesService

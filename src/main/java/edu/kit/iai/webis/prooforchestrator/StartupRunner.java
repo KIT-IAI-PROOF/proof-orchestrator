@@ -33,7 +33,7 @@ public class StartupRunner implements CommandLineRunner {
     }
 
     public void declareLogQueue() {
-        final var queue = QueueBuilder.durable("logs." + this.appName).build();
+        final var queue = QueueBuilder.durable("logs." + this.appName).stream().build();
         final var binding = BindingBuilder.bind(queue).to(new TopicExchange("logs")).with("logs." + this.appName);
         this.amqpAdmin.declareQueue(queue);
         this.amqpAdmin.declareBinding(binding);

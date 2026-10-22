@@ -10,7 +10,6 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
-import java.util.function.Function;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -33,10 +32,10 @@ import com.github.dockerjava.httpclient5.ApacheDockerHttpClient;
 
 import edu.kit.iai.webis.prooforchestrator.config.OrchestrationConfig;
 import edu.kit.iai.webis.proofutils.Colors;
+import edu.kit.iai.webis.proofutils.CommonStringTemplates;
 import edu.kit.iai.webis.proofutils.LoggingHelper;
 import edu.kit.iai.webis.proofutils.wrapper.Block;
 import edu.kit.iai.webis.proofutils.wrapper.Workflow;
-import edu.kit.iai.webis.proofutils.wrapper.Execution;
 
 @Component
 public class DockerHelper {
@@ -66,12 +65,12 @@ public class DockerHelper {
 	private String workerLoggingLevel;
 
 	/**
-	 * the logging directory for the workers as provided by the users.
-     * It can contain placeholders.
+	 * the logging directory for the workers.
+	 * This environment variable is passed on to the start of the worker docker containers
 	 */
 	@Value("${proof.worker.logging.directory:/tmp/proof/logs}")
 	private String workerLoggingDir;
-    
+
     /**
      * the rabbitmq host of the worker.
      * Default is the same as the orchestrator's host, but can be set differently
@@ -85,20 +84,14 @@ public class DockerHelper {
 	}
 
     /**
-     * Get the logging directory for a worker based on the execution instance information.
-     * If a placeholder is used in the configuration, it is replaced.
-     * @param execution Execution instace.
-     * @return the workerLoggingDir with replaced placeholder
+     * Get the logging directory for a worker based on the execution id.
+     * If a placeholder is used in the configuration, it is replaced and stored in the workerLoggingDir variable
+     * in the first call of this method.
+     * @param executionId Id of the execution.
+     * @return the workerLoggingDir without placeholder
      */
-    private String getWorkerLogDir(Execution execution) {
-        LoggingHelper.debug().log("Input:\nworkerLogDir: %s,\nLabel: %s,\nID: %s", this.workerLoggingDir, execution.getName(), execution.getId());
-        Function<String, String> getPropertyOrNull = property -> (property == null ? "null" : property);
-        String label = getPropertyOrNull.apply(execution.getName());
-        String id = getPropertyOrNull.apply(execution.getId());
-        String replaced = this.workerLoggingDir.replace(StringTemplates.PLACEHOLDER_EXECUTION_LABEL, label).
-            replace(StringTemplates.PLACEHOLDER_EXECUTION_ID, id);
-        LoggingHelper.debug().log("Formatted workerLoggingDir: %s", replaced);
-        return replaced;
+    private String getWorkerLogDir(String executionId) {
+        return this.workerLoggingDir.replace(CommonStringTemplates.EXECUTION_ID_PLACEHOLDER, executionId);
     }
 
 	/**
@@ -123,6 +116,16 @@ public class DockerHelper {
         envVars.add("proof.worker.logging.logLevel=" + this.workerLoggingLevel);
         envVars.add("proof.worker.logging.directory=" + workerLogDir);
         envVars.add("app.name=" + block.getId());
+        
+        // Add input timeout configuration from workflow step-based configuration
+        if (workflow.getStepBasedConfig() != null) {
+            Long inputTimeout = workflow.getStepBasedConfig().getInputTimeout();
+            if (inputTimeout != null && inputTimeout > 0) {
+                LoggingHelper.debug().log("Using input timeout for worker '%s (Index: %d)': %d s", block.getName(), block.getIndex(), inputTimeout);
+                envVars.add("proof.worker.input.timeout=" + inputTimeout);
+            }
+        }
+        
         return envVars;
     }
 
@@ -157,9 +160,9 @@ public class DockerHelper {
     /**
      * process a workflow execution based on docker containers
      * @param workflow the workflow and its blocks to be started as docker containers
-     * @param execution the workflow execution instance
+     * @param executionID the workflow execution id
      */
-    public void processDockerExecution(Workflow workflow, Execution execution) {
+    public void processDockerExecution(Workflow workflow, String executionID) {
         try (DockerClient docker = DockerClientBuilder.getInstance()
                 .withDockerHttpClient(new ApacheDockerHttpClient.Builder()
                         .dockerHost(DefaultDockerClientConfig.createDefaultConfigBuilder()
@@ -171,12 +174,11 @@ public class DockerHelper {
             ExecutorService executor = Executors.newFixedThreadPool(workflow.getBlocks().size());
 
             // Create the log directory for the workers to prevent errors when multiple workers try to create the same directory at the same time
-            String workerLogDir = this.getWorkerLogDir(execution);
+            String workerLogDir = this.getWorkerLogDir(executionID);
             Files.createDirectories(Path.of(workerLogDir));
             String workspaceDir = this.orchestrationConfig.getWorkspaceDir();
 
             LoggingHelper.info().log("Using volume '%s' with location '%s' and logging dir: '%s'", this.filesVolumeName, workspaceDir, workerLogDir);
-            String executionID = execution.getId();
             for (Block block : workflow.getBlocks().values()) {
                 executor.submit(() -> {
                     String imageLocation = block.getContainerImage();
@@ -256,9 +258,9 @@ public class DockerHelper {
                         }
                     	docker.startContainerCmd(container.getId()).exec();
                     	LoggingHelper.info().log("Container '%s' started", name);
-					} catch (NotFoundException e) {
-	                    LoggingHelper.error().log("Container image %s could not be started. Reason: %s", imageLocation, e.getMessage());
-					}
+					} catch (Exception e) {
+                        LoggingHelper.error().log("Container image %s could not be started. Reason: %s", imageLocation, e.getMessage());
+                    }
                 });
             }
 

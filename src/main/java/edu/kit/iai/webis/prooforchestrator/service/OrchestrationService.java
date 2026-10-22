@@ -9,6 +9,7 @@ import static java.lang.Long.parseLong;
 import java.util.List;
 import java.util.NoSuchElementException;
 
+import edu.kit.iai.webis.proofutils.model.SimulationStrategy;
 import org.springframework.amqp.rabbit.listener.adapter.MessageListenerAdapter;
 import org.springframework.amqp.support.converter.Jackson2JsonMessageConverter;
 import org.springframework.stereotype.Service;
@@ -50,6 +51,7 @@ public class OrchestrationService {
     private final WorkflowService workflowService;
     private final DockerHelper dockerHelper;
     private final ExecutionLoggingService executionLoggingService;
+    private final ExecutionUpdateQueueService executionUpdateQueueService;
     private KubernetesService kubernetesService;
     private Execution execution;
 
@@ -65,7 +67,8 @@ public class OrchestrationService {
                                 final WorkflowService workflowService,
                                 final DockerHelper dockerHelper,
                                 final ConfigManagerService configManagerService,
-                                final ExecutionLoggingService executionLoggingService) {
+                                final ExecutionLoggingService executionLoggingService,
+                                final ExecutionUpdateQueueService executionUpdateQueueService) {
         this.orchestrationConfig = orchestrationConfig;
         this.scheduleService = scheduleService;
         this.consumerManager = consumerManager;
@@ -78,13 +81,13 @@ public class OrchestrationService {
         this.configManagerService = configManagerService;
         this.dockerHelper = dockerHelper;
         this.executionLoggingService = executionLoggingService;
+        this.executionUpdateQueueService = executionUpdateQueueService;
         LoggingHelper.printColored(false);
     }
 
     /**
      * Prepare workflow before execution
      *
-     * @param configuration Configuration object for orchestration params
      * @param executionId   UUID of the execution process for a workflow to get from config server
      */
     public Execution prepareWorkflow(final String executionId) throws IllegalArgumentException {
@@ -106,6 +109,10 @@ public class OrchestrationService {
         	else {
                 // Setup execution-specific logging
                 this.executionLoggingService.setupExecutionLogging(executionId);
+                
+                // Create execution-specific status and value queues
+                this.executionUpdateQueueService.createStatusQueue(executionId);
+                this.executionUpdateQueueService.createValueQueue(executionId);
 
                 final Workflow workflow = this.execution.getWorkflow();
 
@@ -133,6 +140,14 @@ public class OrchestrationService {
                                     new Jackson2JsonMessageConverter())).start();
                 }
 
+//                this.workflowService.setStaticInputsAndStartBlocks(
+//                        this.mqValueProducer,
+//                        this.orchestrationConfig,
+//                        this.kubernetesService);   // TODO: instantiate kubernetesService for V2
+//
+//                // Check override execution flag
+//                LoggingHelper.info().log(StringTemplates.PREPARED_WORKFLOW, workflow.getId());
+
                 ProcessEnvironment processEnv = this.execution.getProcessEnvironment();
 
                 switch (processEnv) {
@@ -146,11 +161,10 @@ public class OrchestrationService {
                     }
                     case DOCKER -> {
                         try {
-                            this.dockerHelper.processDockerExecution(workflow, execution);
+                            this.dockerHelper.processDockerExecution(workflow, executionId);
                         } catch (Exception e) {
                             LoggingHelper.error().log("ERROR processing docker! " + e.getMessage());
-                            // REFFACTOR:  BS.STOPPED oder ABORTED besser?
-                            this.abortWorkflow(executionId, SimulationStatus.SHUT_DOWN);
+                            this.abortWorkflow(executionId, SimulationStatus.SHUT_DOWN);  // @TODO:  BS.STOPPED oder ABORTED besser?
                             return this.execution;
                         }
                     }
@@ -198,9 +212,9 @@ public class OrchestrationService {
             	}
             }
             LoggingHelper.debug().log("WFC is startable, scheduling  WFC !");
-            this.workflowService.prepareNextStepForAllBlocks();
+            this.workflowService.prepareNextStepForAllBlocks(); // prepareInitStep oder prepareFirstStep ??? Problem: erster Step ohne Values für Blöcke der 2. Stufe
             this.scheduleService.schedule(this.workflowService);
-            this.workflowService.setSimulationStatus(SimulationStatus.READY);
+            this.workflowService.setSimulationStatus(SimulationStatus.READY);  // TODO::?? => WAITING setzen, bis alle Worker sich mit READY zurückgemeldet haben
 
         } catch (final NoSuchElementException e) {
             final String error = StringTemplates.NO_WORKFLOWCONTAINER_KNOWN.formatted(executionId);
@@ -213,6 +227,7 @@ public class OrchestrationService {
      * set the status of a block that is coming from the worker via {@link MQNotifyHandler}
      *
      * @param notifyMessage the message from the worker
+     *                      TODO:  use StatusHelper ?
      */
     public synchronized void setBlockStatus(NotifyMessage notifyMessage) {
         final Integer blockId = notifyMessage.getLocalBlockId();
@@ -233,6 +248,14 @@ public class OrchestrationService {
 
             this.statusHelper.setBlockStatus(blockId, blockStatus);
 
+            // As soon as no worker is still marked WAITING, the WAIT_AND_CONTINUE watchdog can be completed.
+            if (notifyMessage.getSimulationPhase()==SimulationPhase.EXECUTE
+                    &&this.workflowService.isWorkflowSimulationStrategy(SimulationStrategy.WAIT_AND_CONTINUE)
+                    && this.statusHelper.areAllStatus(SimulationStatus.EXECUTION_STEP_FINISHED)) {
+                LoggingHelper.debug().log("All Blocks are no longer WAITING, complete WAIT_AND_CONTINUE watchdog");
+                this.scheduleService.completeNotifyTimeout();
+            }
+            
             if (this.statusHelper.existsErrorSimulationStatus()
             		&& this.statusHelper.isError(blockStatus) )
             {
@@ -353,5 +376,4 @@ public class OrchestrationService {
             LoggingHelper.error().printStackTrace(e).log("Error shutting down all Blocks!");
         }
     }
-
 }
