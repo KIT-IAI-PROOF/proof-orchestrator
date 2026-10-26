@@ -55,7 +55,7 @@ public class StringTemplates {
     public static final String EXECUTING_FINALIZE_TACT = "Executing finalize tact";
     public static final String EXECUTING_STEP_TACT = "Executing Step tact";
     public static final String EXECUTING_INIT_TACT = "Executing Init tact";
-    public static final String FAILED_TO_SCHEDULE_WORKFLOW = "Failed to schedule workflow";
+    public static final String FAILED_TO_SCHEDULE_WORKFLOW = "Failed to schedule workflow: %s";
     public static final String WAITING_FOR_S_MS = "Waiting for %s ms";
     public static final String COULD_NOT_CREATE_K_8_S_API_CLIENT = "Could not create k8s api client";
 
