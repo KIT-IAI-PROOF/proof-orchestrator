@@ -82,7 +82,7 @@ public class OrchestrationController {
     })
     @DeleteMapping(value = "/v1/abort", produces = MediaType.TEXT_PLAIN_VALUE)
     public ResponseEntity<?> abortWorkflow(@Parameter(description = "UUID of the execution to abort", required = true, schema = @Schema(implementation = String.class)) @RequestParam final String executionId) {
-        this.orchestrationService.abortWorkflow(executionId, SimulationStatus.STOPPED);
+        this.orchestrationService.abortWorkflow(executionId);
         return ResponseEntity.ok().build();
     }
 

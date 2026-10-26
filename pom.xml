@@ -12,7 +12,7 @@
 
     <groupId>edu.kit.iai.webis.proof</groupId>
     <artifactId>proof-orchestrator</artifactId>
-    <version>1.4.0-dev0</version>
+    <version>1.4.0-dev1</version>
     <name>PROOF Orchestrator</name>
     <description>PROOF Orchestrator</description>
     <packaging>jar</packaging>
@@ -50,7 +50,11 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-webflux</artifactId>
         </dependency>
-        <dependency>
+		<dependency>
+		    <groupId>org.springframework.boot</groupId>
+		    <artifactId>spring-boot-starter-actuator</artifactId>
+		</dependency>        
+		<dependency>
             <groupId>edu.kit.iai.webis.proof</groupId>
             <artifactId>proof-utils</artifactId>
 	    	<version>1.2.0-dev0</version>

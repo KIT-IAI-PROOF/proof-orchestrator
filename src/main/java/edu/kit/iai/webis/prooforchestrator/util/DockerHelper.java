@@ -254,8 +254,9 @@ public class DockerHelper {
                         } catch (Exception e) {
                             LoggingHelper.error().log("Failed to create container %s: %s", name, e.getMessage());
                             LoggingHelper.error().log("Equivalent Docker command: %s", dockerCmd.toString());
-                            return;
+                            throw e;
                         }
+                        LoggingHelper.info().log("Container '%s' created", name);
                     	docker.startContainerCmd(container.getId()).exec();
                     	LoggingHelper.info().log("Container '%s' started", name);
 					} catch (Exception e) {
