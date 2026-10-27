@@ -191,7 +191,7 @@ public class WorkflowService {
 
     private void nextStep(BlockContainer blockContainer) {
         // process only, if the blockContainer has an allowed status
-    	LoggingHelper.trace().log("CP=%d, Status=%s", this.currentCommunicationPoint, blockContainer.getStatus() );
+    	LoggingHelper.debug().log("nextStep:  CP=%d, Status=%s", this.currentCommunicationPoint, blockContainer.getStatus() );
         switch (blockContainer.getStatus()) {
 	        case EXECUTION_STEP_FINISHED, READY, CREATED, INITIALIZED, WAITING, VALUES_SET -> {
 				blockContainer.setSimulationCommunicationPoint(this.currentCommunicationPoint);
@@ -220,53 +220,45 @@ public class WorkflowService {
     }
 
     /**
-     *
-     * @param syncProducer
-     * @param simulationPhase
-     * @param syncMessage
-     * @return true, if the simulation needs to be ended, false, otherwise
+     * Send shutdown messages to all blocks (blockContainers)
+     * @param syncProducer the producer to send the message to the rabittmq queue
      */
-    private boolean checkSimulationEndReached(final MQSyncProducer syncProducer,
-    		final SimulationPhase simulationPhase,
-    		final SyncMessage syncMessage)
-    {// TODO: switch-Case ...
-        // for all simulation phases except FINALIZE and SHUTDOWN:  FINALIZE, when end point is reached
-        if( simulationPhase != SimulationPhase.FINALIZE && simulationPhase != SimulationPhase.SHUTDOWN ) {
-        	if( this.currentCommunicationPoint >= this.maxBlockEndPoint || this.currentCommunicationPoint >= this.endPoint ) {
-        		LoggingHelper.info().log("maximal endpoint reached for a block (max=%d) or the whole workflow (%d)-> finalizing workflow ... ",
-        				this.maxBlockEndPoint, this.endPoint );
-        		this.blockContainerMap.values().forEach((final var blockContainer) -> {
-        			this.buildAndSendSyncMessage(syncProducer, blockContainer, SimulationPhase.FINALIZE, syncMessage);
-        		});
-        		return true;
-        	}
-        }
-
-        if (simulationPhase.equals(SimulationPhase.SHUTDOWN)) {
-        	// get the initiating block and send a SYNC to all blockContainers that are not already shut down
-        	LoggingHelper.info().log("SHUTDOWN SYNC message will be sent to all block containers" );
-            this.blockContainerMap.values().forEach((final var blockContainer) -> {
-            	if( (blockContainer.getStatus() != SimulationStatus.SHUT_DOWN )) {
-            		this.buildAndSendSyncMessage(syncProducer, blockContainer, SimulationPhase.SHUTDOWN, syncMessage);
-            	}
-        	});
-            return true;
-        }
-        else if (simulationPhase.equals(SimulationPhase.FINALIZE)) {
-        	// get the initiating block and send a SYNC to all blockContainers that are not already finalized or shut down
-        	LoggingHelper.info()
-        	.log("FINALIZE SYNC message will be sent to all block containers ");
-        	this.blockContainerMap.values().forEach((final var blockContainer) -> {
-        		if( blockContainer.getStatus() != SimulationStatus.FINALIZED
-        				&&  (blockContainer.getStatus() != SimulationStatus.SHUT_DOWN )) {
-        			this.buildAndSendSyncMessage(syncProducer, blockContainer, SimulationPhase.FINALIZE, syncMessage);
-        		}
-        	});
-        	return true;
-        }
-        return false;
+    public void sendShutdownMessages(final MQSyncProducer syncProducer) {
+    	LoggingHelper.info().log("One or more blocks (relevant for shutdown) have the status FINALIZED, sending SHUTDOWN SYNC message to all blocks ...");
+        final SyncMessage syncMessage = (SyncMessage) MessageBuilder.init(MessageType.SYNC)
+                .workflowId(this.workflow.getId())
+                .communicationPoint(this.currentCommunicationPoint)
+                .simulationPhase(SimulationPhase.SHUTDOWN)
+                .build();
+    	this.blockContainerMap.values().forEach((final var blockContainer) -> {
+    		syncMessage.setLocalBlockId(blockContainer.getIndex());
+    		syncMessage.setGlobalBlockId(blockContainer.getGlobalId());
+    		LoggingHelper.debug().log("------------------- sending  SHUTDOWN  SYNC to Block %d --->", blockContainer.getIndex());
+    		syncProducer.sendToQueue(NameHelper.getSyncQueueName(this.executionId, blockContainer.getGlobalId(),
+    				blockContainer.getIndex()), syncMessage);
+    	});
     }
 
+    /**
+     * Send finalize messages to all blocks (blockContainers)
+     * @param syncProducer the producer to send the message to the rabittmq queue
+     */
+    public void sendFinalizeMessages(final MQSyncProducer syncProducer) {
+    	LoggingHelper.info().log("One or more blocks (relevant for shutdown) have the status EXECUTION_FINISHED, sending FINALIZE SYNC message to all blocks ...");
+    	final SyncMessage syncMessage = (SyncMessage) MessageBuilder.init(MessageType.SYNC)
+    			.workflowId(this.workflow.getId())
+                .communicationPoint(this.currentCommunicationPoint)
+    			.simulationPhase(SimulationPhase.FINALIZE)
+    			.build();
+    	this.blockContainerMap.values().forEach((final var blockContainer) -> {
+    		syncMessage.setLocalBlockId(blockContainer.getIndex());
+    		syncMessage.setGlobalBlockId(blockContainer.getGlobalId());
+    		LoggingHelper.debug().log("------------------- sending  FINALIZE  SYNC to Block %d --->", blockContainer.getIndex());
+    		syncProducer.sendToQueue(NameHelper.getSyncQueueName(this.executionId, blockContainer.getGlobalId(),
+    				blockContainer.getIndex()), syncMessage);
+    	});
+    }
+    
 
     /**
      * Send SYNC Message to all {@link BlockContainer}s
@@ -281,11 +273,6 @@ public class WorkflowService {
                 .workflowId(this.workflow.getId())
                 .communicationPoint(this.currentCommunicationPoint)
                 .build();
-
-        if( this.checkSimulationEndReached( syncProducer, simulationPhase, syncMessage)) {
-        	LoggingHelper.debug().log("simulation end reached!");
-			return;
-		}
 
         // TODO hier muss noch der Fall betrachtet werden, dass ein nicht shutdownrelevanter Block FINISHED ist
         // und danach ein Finalize bekommt bzw, keinen EXECUTE mehr bekommen darf.
@@ -315,8 +302,10 @@ public class WorkflowService {
 			if (this.currentCommunicationPoint <= this.endPoint) {
 				this.configManagerService.saveCommunicationPoint(this.executionId, this.currentCommunicationPoint);
 			}
-			else {
-				LoggingHelper.debug().messageColor(Colors.ANSI_RED_BOLD).log("sendSyncMessage():: currentCommunicationPoint not increased due to warnings or errors (see above) ");
+			else if( simulationPhase != SimulationPhase.FINALIZE && simulationPhase != SimulationPhase.SHUTDOWN){
+				LoggingHelper.info().messageColor(Colors.ANSI_BLUE_BOLD).log("sendSyncMessage():: simulation has reached its end point (%d) finalizing ... ", this.endPoint);
+				this.sendFinalizeMessages(syncProducer);
+				return;
 			}
 		}
 
@@ -335,7 +324,7 @@ public class WorkflowService {
 					this.buildAndSendSyncMessage(syncProducer, blockContainer, simulationPhase, syncMessage);
 				}
             	else {
-            		warnings.add("sendSyncMessage():: SimulationStatus of BlockContainer '%d' is not READY (=> %s)".formatted(blockContainer.getIndex(), blockContainer.getStatus()));
+            		warnings.add("sendSyncMessage():: Simulation Status of BlockContainer '%d' is not READY (=> %s)".formatted(blockContainer.getIndex(), blockContainer.getStatus()));
             	}
             });
 
@@ -589,23 +578,25 @@ public class WorkflowService {
     	String msg = null;
 
     	if ( this.workflow == null || this.execution == null ) {
-    		msg = "workflow not loaded, nothing to terminate ...";
+    		msg = "workflow '%s' not loaded, nothing to terminate ...";
     	}
     	else if ( this.executionId == null ) {
-    		msg = "workflow execution id not loaded, nothing to terminate ...";
+    		msg = "workflow with execution id '%s' not loaded, nothing to terminate ...";
         }
         else if (! this.executionId.equalsIgnoreCase(executionId)) {
-        	msg = "Wrong workflow execution id for terminating workflow;  current ID: " + this.executionId;
+        	msg = "Wrong workflow execution id '%s' for terminating workflow";
         }
-        else if (
-            this.simulationStatus == SimulationStatus.ABORTED || this.simulationStatus == SimulationStatus.SHUT_DOWN
-            || this.simulationStatus == SimulationStatus.STOPPED )
+        else if ( this.simulationStatus == SimulationStatus.ABORTED || this.simulationStatus == SimulationStatus.SHUT_DOWN )
         {
-        	msg = "Workflow is already terminated, id=" + this.executionId;
+        	msg = "Workflow '%s' is already terminated";
+        }
+        else if ( this.simulationStatus == SimulationStatus.STOPPED )
+        {
+        	msg = "Workflow '%s' is already stopped";
         }
 
     	if( msg != null ) {
-    		LoggingHelper.warn().log(LoggingHelper.printStarBordered(msg));
+    		LoggingHelper.warn().log(LoggingHelper.printStarBordered(msg + this.executionId));
     		return false;
     	}
     	return true;
