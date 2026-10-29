@@ -83,7 +83,7 @@ jobs:
       - name: Build and push image with Jib
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
-          TAG_NAME="${GITHUB_REF_NAME,,}"
+          TAG_NAME="${VERSION,,}"
           
           # Add the latest tag only for release-like versions
           if [[ ! "$TAG_NAME" =~ (dev|feature|local|test) ]]; then
