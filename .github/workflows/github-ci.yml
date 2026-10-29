@@ -96,7 +96,7 @@ jobs:
           mvn \
             install \
             com.google.cloud.tools:jib-maven-plugin:3.4.6:build \
-            -Dimage=ghcr.io/${IMAGE_OWNER}/${{ github.event.repository.name }}:${TAG_NAME}
+            -Dimage=ghcr.io/${IMAGE_OWNER}/${{ github.event.repository.name }}:${TAG_NAME} \
             ${EXTRA_TAG}
 
       - name: Prepare post-deploy
