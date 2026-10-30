@@ -40,10 +40,6 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-oauth2-client</artifactId>
         </dependency>
-        <!--dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-webflux</artifactId>
-        </dependency-->
         <dependency>
             <groupId>edu.kit.iai.webis.proof</groupId>
             <artifactId>proof-utils</artifactId>
