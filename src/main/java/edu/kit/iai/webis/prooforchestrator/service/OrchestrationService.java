@@ -4,14 +4,19 @@
  */
 package edu.kit.iai.webis.prooforchestrator.service;
 
-import static java.lang.Long.parseLong;
-
 import java.util.List;
 import java.util.NoSuchElementException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
+import jakarta.annotation.PreDestroy;
+
+import edu.kit.iai.webis.proofutils.model.SimulationStrategy;
 import org.springframework.amqp.rabbit.listener.adapter.MessageListenerAdapter;
 import org.springframework.amqp.support.converter.Jackson2JsonMessageConverter;
 import org.springframework.stereotype.Service;
+import org.springframework.web.reactive.function.client.WebClient;
 
 import edu.kit.iai.webis.prooforchestrator.config.OrchestrationConfig;
 import edu.kit.iai.webis.prooforchestrator.exception.ConcurrentWorkflowException;
@@ -50,8 +55,15 @@ public class OrchestrationService {
     private final WorkflowService workflowService;
     private final DockerHelper dockerHelper;
     private final ExecutionLoggingService executionLoggingService;
+    private final ExecutionUpdateQueueService executionUpdateQueueService;
+    private final WebClient webClient;
     private KubernetesService kubernetesService;
     private Execution execution;
+    // Dedicated single-thread executor used to run the terminal workflow shutdown
+    // (see setBlockStatus() case SHUT_DOWN) off the RabbitMQ listener-container consumer
+    // thread that received the triggering notify message.
+    private final ExecutorService shutdownExecutor = Executors.newSingleThreadExecutor(
+            r -> new Thread(r, "workflow-shutdown"));
 
     public OrchestrationService(final OrchestrationConfig orchestrationConfig,
                                 final ScheduleService scheduleService,
@@ -65,7 +77,9 @@ public class OrchestrationService {
                                 final WorkflowService workflowService,
                                 final DockerHelper dockerHelper,
                                 final ConfigManagerService configManagerService,
-                                final ExecutionLoggingService executionLoggingService) {
+                                final ExecutionLoggingService executionLoggingService,
+                                final ExecutionUpdateQueueService executionUpdateQueueService,
+                                final WebClient defaultWebClient) {
         this.orchestrationConfig = orchestrationConfig;
         this.scheduleService = scheduleService;
         this.consumerManager = consumerManager;
@@ -78,13 +92,14 @@ public class OrchestrationService {
         this.configManagerService = configManagerService;
         this.dockerHelper = dockerHelper;
         this.executionLoggingService = executionLoggingService;
+        this.executionUpdateQueueService = executionUpdateQueueService;
+        this.webClient = defaultWebClient;
         LoggingHelper.printColored(false);
     }
 
     /**
      * Prepare workflow before execution
      *
-     * @param configuration Configuration object for orchestration params
      * @param executionId   UUID of the execution process for a workflow to get from config server
      */
     public Execution prepareWorkflow(final String executionId) throws IllegalArgumentException {
@@ -106,6 +121,10 @@ public class OrchestrationService {
         	else {
                 // Setup execution-specific logging
                 this.executionLoggingService.setupExecutionLogging(executionId);
+                
+                // Create execution-specific status and value queues
+                this.executionUpdateQueueService.createStatusQueue(executionId);
+                this.executionUpdateQueueService.createValueQueue(executionId);
 
                 final Workflow workflow = this.execution.getWorkflow();
 
@@ -133,6 +152,14 @@ public class OrchestrationService {
                                     new Jackson2JsonMessageConverter())).start();
                 }
 
+//                this.workflowService.setStaticInputsAndStartBlocks(
+//                        this.mqValueProducer,
+//                        this.orchestrationConfig,
+//                        this.kubernetesService);   // TODO: instantiate kubernetesService for V2
+//
+//                // Check override execution flag
+//                LoggingHelper.info().log(StringTemplates.PREPARED_WORKFLOW, workflow.getId());
+
                 ProcessEnvironment processEnv = this.execution.getProcessEnvironment();
 
                 switch (processEnv) {
@@ -149,8 +176,7 @@ public class OrchestrationService {
                             this.dockerHelper.processDockerExecution(workflow, executionId);
                         } catch (Exception e) {
                             LoggingHelper.error().log("ERROR processing docker! " + e.getMessage());
-                            // REFFACTOR:  BS.STOPPED oder ABORTED besser?
-                            this.abortWorkflow(executionId, SimulationStatus.SHUT_DOWN);
+                            this.abortWorkflow(executionId);  // @TODO:  BS.STOPPED oder ABORTED besser?
                             return this.execution;
                         }
                     }
@@ -198,9 +224,9 @@ public class OrchestrationService {
             	}
             }
             LoggingHelper.debug().log("WFC is startable, scheduling  WFC !");
-            this.workflowService.prepareNextStepForAllBlocks();
+            this.workflowService.prepareNextStepForAllBlocks(); // prepareInitStep oder prepareFirstStep ??? Problem: erster Step ohne Values für Blöcke der 2. Stufe
             this.scheduleService.schedule(this.workflowService);
-            this.workflowService.setSimulationStatus(SimulationStatus.READY);
+            this.workflowService.setSimulationStatus(SimulationStatus.READY);  // TODO::?? => WAITING setzen, bis alle Worker sich mit READY zurückgemeldet haben
 
         } catch (final NoSuchElementException e) {
             final String error = StringTemplates.NO_WORKFLOWCONTAINER_KNOWN.formatted(executionId);
@@ -213,6 +239,7 @@ public class OrchestrationService {
      * set the status of a block that is coming from the worker via {@link MQNotifyHandler}
      *
      * @param notifyMessage the message from the worker
+     *                      TODO:  use StatusHelper ?
      */
     public synchronized void setBlockStatus(NotifyMessage notifyMessage) {
         final Integer blockId = notifyMessage.getLocalBlockId();
@@ -232,12 +259,14 @@ public class OrchestrationService {
             }
 
             this.statusHelper.setBlockStatus(blockId, blockStatus);
-
+            
             if (this.statusHelper.existsErrorSimulationStatus()
             		&& this.statusHelper.isError(blockStatus) )
             {
             	final String errTxt = notifyMessage.getErrorText();
                 LoggingHelper.printStarBordered( errTxt == null || errTxt.isBlank() ? "no error text available!" : errTxt);
+                LoggingHelper.printStarBordered( "Workfow will be stopped and shut down ..." );
+                workflowService.sendShutdownMessages(mqSyncProducer);
                 return;
             }
 
@@ -256,19 +285,50 @@ public class OrchestrationService {
 						this.runWorkflow(notifyMessage.getExecutionId());
 					}
 				}
-				case SHUT_DOWN -> {
-					if( shuttingDown ) {
-						LoggingHelper.warn().log("Workflow is already shutting down, status message SHUT_DOWN ignored");
+				//@TODO:  what about a WF that has only blocks that are not shutDownRelevan?
+				case EXECUTION_FINISHED -> {
+					if (this.statusHelper.hasAShutdownRelevantBlockTheStatus(SimulationStatus.EXECUTION_FINISHED) ) {
+						this.workflowService.sendFinalizeMessages(mqSyncProducer);
+						this.workflowService.setSimulationStatus(SimulationStatus.FINALIZED);
 					}
+				}
+				case FINALIZED -> {
+					if (this.statusHelper.areAllStatus(SimulationStatus.FINALIZED) ) {
+						this.workflowService.sendShutdownMessages(mqSyncProducer);
+						this.workflowService.setSimulationStatus(SimulationStatus.FINALIZED);
+					}
+				}
+				case SHUT_DOWN -> {
+//					if( shuttingDown ) {
+//						LoggingHelper.warn().log("Workflow is already shutting down, status message SHUT_DOWN ignored");
+//					}
 		            if ( this.statusHelper.areAllStatus(SimulationStatus.SHUT_DOWN) )
 		            {
                         // Stop the execution specific logging
                         String executionId = notifyMessage.getExecutionId();
                         LoggingHelper.debug().log("=== Shutting down execution '%s'", executionId);
+                        this.workflowService.setSimulationStatus(SimulationStatus.SHUT_DOWN);
 
 		            	shuttingDown = true;
-		                this.abortWorkflow(notifyMessage.getExecutionId(), SimulationStatus.SHUT_DOWN);
-						this.workflowService.setSimulationStatus(SimulationStatus.SHUT_DOWN);
+		                // Dispatch the actual cleanup (queue deletion, consumer shutdown, master
+		                // callback) to a dedicated worker thread instead of running it inline on
+		                // this RabbitMQ listener-container consumer thread. shutdownWorkflow() calls
+		                // ConsumerManager.stopConsumers(), which would otherwise try to stop/join the
+		                // very same container thread that is currently executing this handler,
+		                // causing a self-join deadlock that is only resolved by the container's
+		                // shutdown timeout (see "Closing channel for unresponsive consumer" warnings)
+		                // and leaves the thread's interrupted flag set for unrelated subsequent work.
+		                this.shutdownExecutor.execute(() -> {
+		                    try {
+		                        this.stopWorkflow(executionId, SimulationStatus.SHUT_DOWN);
+		                        LoggingHelper.debug().log("=== Shutdown completed ");
+		                    } catch (final Exception e) {
+		                        LoggingHelper.error().log("Error while shutting down execution '%s': %s", executionId, e.getMessage());
+		                    }
+//		                    finally {
+//		                        this.workflowService.setSimulationStatus(SimulationStatus.SHUT_DOWN);
+//		                    }
+		                });
 		            }
 				}
 				default -> {} // do nothing, status is already set
@@ -279,79 +339,155 @@ public class OrchestrationService {
         }
     }
 
+    /**
+     * this method is called when all blocks notified {@link  SimulationStatus#SHUT_DOWN}. This means that the blocks ended their process.
+     * Now the connections must be unmounted and deleted.
+     * @param executionId the id of the running execution
+     */
+    public void stopWorkflow(final String executionId, SimulationStatus finalSimulationStatus) {
+        LoggingHelper.info().messageColor(Colors.ANSI_GREEN_BOLD).log("stopping workflow '%s'", executionId);
 
-    public void abortWorkflow(final String executionId, SimulationStatus finalSimulationStatus) {
-        LoggingHelper.info().messageColor(Colors.ANSI_YELLOW)
-        .log("Try to stop and terminate workflow '%s'", executionId);
+        LoggingHelper.debug().log("Setting final status %s for execution '%s'", finalSimulationStatus, executionId);
+        
+        Long duration = this.workflowService.getStepBasedDuration();
+        Long shutdownTimeout_ms = this.orchestrationConfig.getShutdownTimeout()*1000;
+        this.notifyMasterExecutionFinished(executionId);
 
-        try {
-        	if( ! this.workflowService.canTerminateWorkflow(executionId) ) {
-        		return;
-        	}
-        	this.workflowService.setSimulationStatus(finalSimulationStatus);
-            this.workflowService.sendSyncMessage(this.mqSyncProducer, SimulationPhase.SHUTDOWN);
+        switch (finalSimulationStatus) {
+		case ABORTED, SHUT_DOWN -> {
+	        // @TODO: necessary here, because all blocks are already shut down?
+	        try {
+	        	Thread.sleep(duration + shutdownTimeout_ms);
+	        } catch (InterruptedException e) {
+	        	// Intentionally NOT restoring the interrupt flag here: this thread continues to
+	        	// perform further blocking work below (queue cleanup, WebClient.block() call to
+	        	// notify proof-master). If the interrupt flag stayed set, those subsequent
+	        	// blocking calls would immediately fail with an InterruptedException too.
+	        	LoggingHelper.warn().log("Shutdown wait interrupted early, continuing cleanup");
+	        } 
+	        
+	        // @TODO: useful here or better somehow in DockerHelper??
+	        if (this.execution.getProcessEnvironment() == ProcessEnvironment.KUBERNETES) {
+	        	this.workflowService.abortBlocks(this.kubernetesService);
+	        }
 
-            Long duration = this.workflowService.getStepBasedDuration();
-            Long shutdownTimeout_ms = parseLong(this.orchestrationConfig.getShutdownTimeout())*1000;
+	        // deleting Queues and Exchanges
+	        for (Block block : this.workflowService.getWorkflow().getBlocks().values()) {
+	        	
+	        	String queueName = NameHelper.getStaticInputsQueueName(executionId, block);
+	        	if (this.amqpService.deleteServiceQueue(queueName)) {
+	        		LoggingHelper.info().log("STATIC INPUTS Queue '%s' deleted", queueName);
+	        	} else {
+	        		LoggingHelper.error().log("STATIC INPUTS Queue '%s' could not be deleted!", queueName);
+	        	}
+	        	
+	        	queueName = NameHelper.getSyncQueueName(executionId, block);
+	        	
+	        	if (this.amqpService.deleteServiceQueue(queueName)) {
+	        		LoggingHelper.info().log("Sync Queue '%s' deleted", queueName);
+	        	} else {
+	        		LoggingHelper.error().log("Sync Queue '%s' could not be deleted", queueName);
+	        	}
+	        	
+	        	queueName = NameHelper.getNotifyQueueName(executionId, block);
+	        	if (this.amqpService.deleteServiceQueue(queueName)) {
+	        		LoggingHelper.info().log("Notify Queue '%s' deleted", queueName);
+	        	} else {
+	        		LoggingHelper.error().log("Notify Queue '%s' could not be deleted", queueName);
+	        	}
+	        }
+	        
+	    	this.consumerManager.stopConsumers();
+	    	this.amqpService.deleteOutputExchanges(this.workflowService.getOutPorts());
+	    	this.amqpService.deleteInputQueues(this.workflowService.getInPorts());
 
-            LoggingHelper.info().log("OrchestrationService:  shutting down all Blocks,   ... waiting %d ms", (duration + shutdownTimeout_ms));
-            Thread.currentThread().join(duration + shutdownTimeout_ms);
-            LoggingHelper.info().log("OrchestrationService:  shutting down ... ");
+    		new Thread(this.scheduleService::stop).start();
+    		
+    		LoggingHelper.info().log("Workflow with execution id '%s' was shut down", executionId );
 
-            this.consumerManager.stopConsumers();
-            this.scheduleService.stop();
-            // Check dry run and delete container
-            if (this.execution.getProcessEnvironment() == ProcessEnvironment.KUBERNETES) {
-                this.workflowService.abortBlocks(this.kubernetesService);
-            }
-
-            this.amqpService.deleteOutputExchanges(this.workflowService.getOutPorts());
-            this.amqpService.deleteInputQueues(this.workflowService.getInPorts());
-
-            for (Block block : this.workflowService.getWorkflow().getBlocks().values()) {
-
-                String queueName = NameHelper.getStaticInputsQueueName(executionId, block);
-                if (this.amqpService.deleteServiceQueue(queueName)) {
-                    LoggingHelper.info().log("STATIC INPUTS Queue '%s' deleted", queueName);
-                } else {
-                    LoggingHelper.error().log("STATIC INPUTS Queue '%s' could not be deleted!", queueName);
-                }
-
-                queueName = NameHelper.getSyncQueueName(executionId, block);
-
-                if (this.amqpService.deleteServiceQueue(queueName)) {
-                    LoggingHelper.info().log("Sync Queue '%s' deleted", queueName);
-                } else {
-                    LoggingHelper.error().log("Sync Queue '%s' could not be deleted", queueName);
-                }
-
-                queueName = NameHelper.getNotifyQueueName(executionId, block);
-                if (this.amqpService.deleteServiceQueue(queueName)) {
-                    LoggingHelper.info().log("Notify Queue '%s' deleted", queueName);
-                } else {
-                    LoggingHelper.error().log("Notify Queue '%s' could not be deleted", queueName);
-                }
-
-            }
-
-            LoggingHelper.info()
-                .log(finalSimulationStatus == SimulationStatus.ABORTED ? StringTemplates.WORKFLOW_WAS_ABORTED :
-                        StringTemplates.WORKFLOW_WAS_SHUTDOWN);
-
-            LoggingHelper.debug().log("OrchestrationService: Setting final status for execution '%s'", executionId);
-            // Remove execution-specific logging
-            //this.executionLoggingService.removeExecutionLogging(executionId);
-
-            // Update status
-        	this.workflowService.setSimulationStatus(finalSimulationStatus);
-
-            // Stop the execution specific logging
-            LoggingHelper.debug().log("OrchestrationService: Stopping execution-specific logging for execution '%s'", executionId);
+            // Stop the execution-specific logging only now that all cleanup logging above has been emitted
             this.executionLoggingService.stopExecutionLogging(executionId);
-
-        } catch (InterruptedException e) {
-            LoggingHelper.error().printStackTrace(e).log("Error shutting down all Blocks!");
-        }
+		}
+		case STOPPED -> {
+    		LoggingHelper.info().log("Workflow with execution id '%s' was stopped", executionId );
+		}
+		case SUSPENDED -> {
+    		LoggingHelper.info().log("Workflow with execution id '%s' was suspended", executionId );
+		}
+		default ->
+			throw new IllegalArgumentException("Unexpected value: " + finalSimulationStatus);
+		}
     }
 
+
+    /**
+     * abort the running workflow while sending a shutdown sync to all blocks. The reply of the blocks will we managed by the 
+     * {@link ScheduleService}
+     * @param executionId the current execution id
+     */
+    public void abortWorkflow(final String executionId) {
+    	LoggingHelper.info().messageColor(Colors.ANSI_CYAN_BOLD)
+    	.log("Try to stop and terminate workflow '%s'", executionId);
+    	
+    	if( ! this.workflowService.canTerminateWorkflow(executionId) ) {
+    		return;
+    	}
+    	this.workflowService.sendSyncMessage(this.mqSyncProducer, SimulationPhase.SHUTDOWN);
+    }
+    
+    /**
+     * Notify proof-master that this orchestrator instance has finished its workflow (all its
+     * workers have shut down) so that proof-master can stop and remove this orchestrator's now
+     * unneeded container. Best-effort: any failure is logged but does not affect the workflow's
+     * own shutdown, e.g. when the orchestrator is run standalone without a configured master.
+     *
+     * @param executionId UUID of the execution that just finished
+     */
+    private void notifyMasterExecutionFinished(final String executionId) {
+    	
+    	if( this.orchestrationConfig.isRunAsMaster() ) {
+        	LoggingHelper.debug().log("Execution '%s' finished (without master). ", executionId);
+        	return;
+    	}
+    	
+    	LoggingHelper.debug().log("Notifying proof-master that execution '%s' finished. MasterCallbackURL: %s", executionId, this.orchestrationConfig.getMasterCallbackUrl().toString());
+    	
+    	
+        this.orchestrationConfig.getMasterCallbackUrl().ifPresentOrElse(callbackUrl -> {
+            try {
+                final var uri = org.springframework.web.util.UriComponentsBuilder.fromHttpUrl(callbackUrl)
+                        .queryParam("executionId", executionId)
+                        .build()
+                        .toUri();
+                LoggingHelper.debug().log("==>  Notifying proof-master that execution '%s' finished. generated URI: %s", executionId, uri.toString());
+                this.webClient.post()
+                        .uri(uri)
+                        .retrieve()
+                        .toBodilessEntity()
+                        .block();
+                LoggingHelper.info().log("==>  Notified proof-master that execution '%s' finished", executionId);
+            } catch (Exception e) {
+                LoggingHelper.warn().log("Could not notify proof-master that execution '%s' finished: %s",
+                        executionId, e.getMessage());
+            }
+        }, () -> LoggingHelper.debug().log(
+                "No proof-master callback URL configured, skipping finished-notification for execution '%s'", executionId));
+    }
+
+    /**
+     * Cleanly shut down the dedicated shutdown-worker thread when this bean is destroyed
+     * (e.g. on application context shutdown), so no non-daemon thread keeps the JVM alive.
+     */
+    @PreDestroy
+    private void shutdownShutdownExecutor() {
+        this.shutdownExecutor.shutdown();
+        try {
+            if (!this.shutdownExecutor.awaitTermination(5, TimeUnit.SECONDS)) {
+                this.shutdownExecutor.shutdownNow();
+            }
+        } catch (InterruptedException e) {
+            this.shutdownExecutor.shutdownNow();
+            Thread.currentThread().interrupt();
+        }
+    }
 }

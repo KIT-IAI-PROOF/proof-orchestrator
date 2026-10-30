@@ -194,6 +194,7 @@ public class BlockContainer {
      * the default communication step size is used (see {@link StepBasedConfiguration}).
      */
     public Integer getCommunicationStepSize(Integer communicationPoint) {
+        // TODO: use StepSizeDefinitionHelper?
         if (this.stepSizeDefinition != null) {
             Integer stepSize = this.stepSizeDefinition.getStepSize(communicationPoint);
             if (stepSize != null) {

@@ -39,6 +39,8 @@ spring:
             authorization-grant-type: client_credentials
 proof:
   orchestration:
+    worker:
+      timeout: 10
     k8s:
       namespace: webis
     processing: DOCKER

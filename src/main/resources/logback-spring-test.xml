@@ -3,8 +3,7 @@
     <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
         <encoder>
             <pattern>
-                %cyan([%date{"yyyy-MM-dd'T'HH:mm:ss.SSS",
-                UTC}])-%highlight([%-6p])-%blue([%-15.-15c{0}])-%cyan([%-10.-10t{0}]) -- %msg%n
+	            %cyan([%date{"yyyy-MM-dd"}) %green(%date{"HH:mm:ss.SSS",UTC}])-%highlight([%-5p])-%blue([%-45.45(%C{0}.%M:%L)]) -- %msg%n
             </pattern>
         </encoder>
     </appender>
