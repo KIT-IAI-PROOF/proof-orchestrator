@@ -157,20 +157,16 @@ public class StatusHelper {
             default -> LoggingHelper.warn().log("Unexpected value: " + status);
         }
 
-        if (LoggingHelper.isLevelDebugOrTrace()) {
-            System.out.println("SH: SetBlockStatus: ################################## passed Phases: C / I / E / F / S: "
+        LoggingHelper.debug().log(" ################################## passed Phases: C / I / E / F / S: "
                     + this.passedPhases[SimulationPhase.CREATE.ordinal()] + ", "
                     + this.passedPhases[SimulationPhase.INIT.ordinal()] + ", "
                     + this.passedPhases[SimulationPhase.EXECUTE.ordinal()] + ", "
                     + this.passedPhases[SimulationPhase.FINALIZE.ordinal()] + ", "
                     + this.passedPhases[SimulationPhase.SHUTDOWN.ordinal()] + "  ############################################\n ");
-        }
-
     }
 
     private void logSummary() {
-        if (LoggingHelper.isLevelDebugOrTrace()) {
-            System.out.println("SH: SetBlockStatus: ################################## #BCs with Statuses: "
+    	LoggingHelper.debug().log(" ################################## #BCs with Statuses: "
                     + "R=" + this.intStatusArray[SimulationStatus.READY.ordinal()]
                     + ", W=" + this.intStatusArray[SimulationStatus.WAITING.ordinal()]
                     + ", C=" + this.intStatusArray[SimulationStatus.CREATED.ordinal()]
@@ -184,7 +180,6 @@ public class StatusHelper {
                     + " ES=" + this.intStatusArray[SimulationStatus.ERROR_STEP.ordinal()]
                     + " EF=" + this.intStatusArray[SimulationStatus.ERROR_FINALIZE.ordinal()] + " ]  of " + this.blockContainers.size()
                     + " ################################## ");
-        }
     }
 
     private synchronized void decreaseOldStatusCounter(SimulationStatus status) {
