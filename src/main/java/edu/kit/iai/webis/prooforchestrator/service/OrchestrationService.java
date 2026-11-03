@@ -14,7 +14,6 @@ import jakarta.annotation.PreDestroy;
 
 import edu.kit.iai.webis.proofutils.model.SimulationStrategy;
 import org.springframework.amqp.rabbit.listener.adapter.MessageListenerAdapter;
-import org.springframework.amqp.support.converter.Jackson2JsonMessageConverter;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 
@@ -30,6 +29,7 @@ import edu.kit.iai.webis.proofutils.LoggingHelper;
 import edu.kit.iai.webis.proofutils.helper.NameHelper;
 import edu.kit.iai.webis.proofutils.io.MQSyncProducer;
 import edu.kit.iai.webis.proofutils.io.MQValueProducer;
+import edu.kit.iai.webis.proofutils.io.ProofMessageConverter;
 import edu.kit.iai.webis.proofutils.message.MessageType;
 import edu.kit.iai.webis.proofutils.message.NotifyMessage;
 import edu.kit.iai.webis.proofutils.model.ProcessEnvironment;
@@ -149,7 +149,7 @@ public class OrchestrationService {
                             MessageType.NOTIFY,
                             new MessageListenerAdapter(
                                     new MQNotifyHandler(this),
-                                    new Jackson2JsonMessageConverter())).start();
+                                    ProofMessageConverter.create())).start();
                 }
 
 //                this.workflowService.setStaticInputsAndStartBlocks(
