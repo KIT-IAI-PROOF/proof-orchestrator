@@ -116,6 +116,12 @@ public class OrchestrationConfig {
     @Value("${proof.orchestrator.masterCallbackUrl:#{null}}")
     private Optional<String> masterCallbackUrl;
 
+	/**
+	 * The logback file that should be used for logging. It must begin with 'file:' and can be <b>null</>
+	 */
+	@Value("${proof.logback.file:#{null}}")
+	private String usedlogbackFile;
+	
     /**
      * still used by KubernetesService
      * @return
@@ -190,5 +196,9 @@ public class OrchestrationConfig {
 	
 	public boolean isRunAsMaster() {
 		return runAsMaster;
+	}
+
+	public String getUsedLogbackFile() {
+		return usedlogbackFile;
 	}
 }
