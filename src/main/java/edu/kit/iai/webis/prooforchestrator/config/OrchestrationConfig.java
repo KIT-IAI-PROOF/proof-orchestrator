@@ -11,6 +11,8 @@ import java.util.Optional;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
 
+import io.kubernetes.client.proto.V1.NodeSystemInfoOrBuilder;
+
 @Configuration
 public class OrchestrationConfig {
     /**
@@ -119,8 +121,8 @@ public class OrchestrationConfig {
 	/**
 	 * The logback file that should be used for logging. It must begin with 'file:' and can be <b>null</>
 	 */
-	@Value("${proof.logback.file:#{null}}")
-	private String usedlogbackFile;
+	@Value("${proof.worker.logging.config:#{null}}")
+	private String workerLogbackFile;
 	
     /**
      * still used by KubernetesService
@@ -197,8 +199,8 @@ public class OrchestrationConfig {
 	public boolean isRunAsMaster() {
 		return runAsMaster;
 	}
-
-	public String getUsedLogbackFile() {
-		return usedlogbackFile;
+	
+	public String getWorkerLogbackFile() {
+		return workerLogbackFile;
 	}
 }
