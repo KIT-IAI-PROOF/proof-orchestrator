@@ -133,7 +133,7 @@ public class DockerHelper {
 			envVars.add("logging.config=" + this.orchestrationConfig.getWorkerLogbackFile());
 		}
 		if (LoggingHelper.isLevelDebugOrTrace()) {
-			StringJoiner sj = new StringJoiner("\n", "Used environmant variables for worker container '"+block.getIndex()+"':\n", "\n" );
+			StringJoiner sj = new StringJoiner("\n", "Used environment variables for worker container '"+block.getIndex()+"':\n", "\n" );
 			envVars.forEach(e -> sj.add(e));
 			LoggingHelper.debug().log(sj.toString());
 		}
