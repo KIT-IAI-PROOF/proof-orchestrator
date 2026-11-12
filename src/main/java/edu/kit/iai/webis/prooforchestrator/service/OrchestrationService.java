@@ -140,14 +140,6 @@ public class OrchestrationService {
                                     new Jackson2JsonMessageConverter())).start();
                 }
 
-//                this.workflowService.setStaticInputsAndStartBlocks(
-//                        this.mqValueProducer,
-//                        this.orchestrationConfig,
-//                        this.kubernetesService);   // TODO: instantiate kubernetesService for V2
-//
-//                // Check override execution flag
-//                LoggingHelper.info().log(StringTemplates.PREPARED_WORKFLOW, workflow.getId());
-
                 ProcessEnvironment processEnv = this.execution.getProcessEnvironment();
 
                 switch (processEnv) {
@@ -212,9 +204,12 @@ public class OrchestrationService {
             	}
             }
             LoggingHelper.debug().log("WFC is startable, scheduling  WFC !");
-            this.workflowService.prepareNextStepForAllBlocks(); // prepareInitStep oder prepareFirstStep ??? Problem: erster Step ohne Values für Blöcke der 2. Stufe
+            // TODO: REFACTOR: 
+            // - better use prepareInitStep or prepareFirstStep?
+            // - better use WAITING until all blocks send back READY 
+            this.workflowService.prepareNextStepForAllBlocks();
             this.scheduleService.schedule(this.workflowService);
-            this.workflowService.setSimulationStatus(SimulationStatus.READY);  // TODO::?? => WAITING setzen, bis alle Worker sich mit READY zurückgemeldet haben
+            this.workflowService.setSimulationStatus(SimulationStatus.READY);
 
         } catch (final NoSuchElementException e) {
             final String error = StringTemplates.NO_WORKFLOWCONTAINER_KNOWN.formatted(executionId);

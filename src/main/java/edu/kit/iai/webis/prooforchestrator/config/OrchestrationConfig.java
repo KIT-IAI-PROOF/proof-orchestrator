@@ -94,7 +94,7 @@ public class OrchestrationConfig {
     private String userdataDir;
 
     /**
-     * Optional run script to be performed to start the workers  @TODO necessary?
+     * Optional run script to be performed to start the workers
      */
     @Value("${proof.orchestration.run.script:#{null}}")
     private Optional<String> runScript;
