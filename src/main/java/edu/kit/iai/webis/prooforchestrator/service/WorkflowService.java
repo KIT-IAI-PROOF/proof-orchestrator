@@ -226,7 +226,8 @@ public class WorkflowService {
      */
     private boolean checkSimulationEndReached(final MQSyncProducer syncProducer,
     		final SimulationPhase simulationPhase,
-    		final SyncMessage syncMessage) {
+    		final SyncMessage syncMessage)
+    {
         if( simulationPhase != SimulationPhase.FINALIZE && simulationPhase != SimulationPhase.SHUTDOWN ) {
         	if( this.currentCommunicationPoint >= this.maxBlockEndPoint || this.currentCommunicationPoint >= this.endPoint ) {
         		LoggingHelper.info().log("maximal endpoint reached for a block (max=%d) or the whole workflow (%d)-> finalizing workflow ... ",
@@ -282,6 +283,8 @@ public class WorkflowService {
         	LoggingHelper.debug().log("simulation end reached!");
 			return;
 		}
+
+        // TODO: Add case that shutdown-relevant block is FINISHED: should not receive any EXECUTEs anymore
 
         if( this.simulationStrategy == SimulationStrategy.WAIT_AND_RETRY
         	&& this.statusHelper.isAnyStatus(SimulationStatus.RETRY) )
@@ -425,6 +428,7 @@ public class WorkflowService {
         this.blockContainerMap.values().parallelStream().forEach(blockContainer -> {
             blockContainer.setStatus(SimulationStatus.ABORTED);
 
+            // Check dry run and delete container
             if (kubernetesService != null) {
                 kubernetesService.stopBlock(blockContainer, this.executionId);
             }
@@ -465,7 +469,7 @@ public class WorkflowService {
                     blockContainer.setConfiguration(this.workflow.getStepBasedConfig());
 
                     /**
-                     * REFACTOR: is this still necessary?
+                     * TODO: REFACTOR: is this still necessary?
                      * The 'old' setting of the application-dev.yaml contents is done via autoWiring at the only location,
                      * where it is required:
                      * => prooforchestrator.config.OrchestrationConfig, used at prooforchestrator.service.KubernetesService

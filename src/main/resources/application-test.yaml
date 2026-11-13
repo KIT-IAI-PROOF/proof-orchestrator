@@ -50,6 +50,8 @@ websocket:
     relayhost: localhost
 proof:
   orchestration:
+    worker:
+      timeout: 10
     k8s:
       namespace: webis
     processing: DOCKER
