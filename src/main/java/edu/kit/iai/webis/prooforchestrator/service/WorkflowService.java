@@ -277,7 +277,14 @@ public class WorkflowService {
         // TODO hier muss noch der Fall betrachtet werden, dass ein nicht shutdownrelevanter Block FINISHED ist
         // und danach ein Finalize bekommt bzw, keinen EXECUTE mehr bekommen darf.
 
-        if( this.simulationStrategy == SimulationStrategy.WAIT_AND_RETRY
+        // handle shutdown/abort
+		if (simulationPhase == SimulationPhase.FINALIZE || simulationPhase == SimulationPhase.SHUTDOWN) {
+			LoggingHelper.info().messageColor(Colors.ANSI_BLUE_BOLD).log("finishing simulation ... ");
+			this.sendFinalizeMessages(syncProducer);
+			return;
+		}
+
+		if( this.simulationStrategy == SimulationStrategy.WAIT_AND_RETRY
         	&& this.statusHelper.isAnyStatus(SimulationStatus.RETRY) )
 		{
         	System.out.println("---------------------- sendSyncMessage (2) ---------------------------");
@@ -292,7 +299,7 @@ public class WorkflowService {
         	});
         	return;
 		}
-
+        
 		// increase the current communication point, number '0' is used for block initialization
 		if( simulationPhase != SimulationPhase.INIT ) {
 			this.currentCommunicationPoint++;
@@ -446,7 +453,10 @@ public class WorkflowService {
 
         this.blockContainerMap.clear();
 
-        final List<BlockContainer> blockContainers = this.workflow.getBlocks().values().parallelStream().map((final Block block) -> {
+        final List<BlockContainer> blockContainers = new ArrayList<BlockContainer>();
+        
+        this.workflow.getBlocks().values().stream().forEach( (final Block block) -> {
+        		
             try {
                 if (BlockHelper.checkIfAllRequiredInputsHaveValues(block, executionParameters)) {
                     BlockContainer blockContainer = new BlockContainer();
@@ -478,22 +488,18 @@ public class WorkflowService {
                     if (blockContainer.getEndPoint() > this.maxBlockEndPoint) {
                         this.maxBlockEndPoint = blockContainer.getEndPoint();
                     }
-                    return blockContainer;
-
+                    blockContainers.add(blockContainer);
                 } else {
                     throw new ElementCreationException("The value for the required static input of block '%s' (%s) is missing!".formatted(block.getName(), block.getId()));
                 }
             } catch (Exception e) {
                 throw new ElementCreationException(e.getMessage());
             }
-
-        }).toList();
-        List<BlockContainer> sortedContainers = new ArrayList<BlockContainer>();
-        blockContainers.forEach(b -> sortedContainers.add(b));
-        Collections.sort(sortedContainers, (a, b) -> a.getIndex() < b.getIndex() ? -1 : a.getIndex() == b.getIndex() ? 0 : 1);
+        });
+        Collections.sort(blockContainers, (a, b) -> a.getIndex() < b.getIndex() ? -1 : a.getIndex() == b.getIndex() ? 0 : 1);
         this.simulationStatus = SimulationStatus.UNKNOWN;
-        LoggingHelper.trace().log("Block container list: " + sortedContainers);
-        this.statusHelper.setBlockContainers(sortedContainers);
+        LoggingHelper.debug().log("Block container list: " + blockContainers);
+        this.statusHelper.setBlockContainers(blockContainers	);
 
         try {
             this.connectInputsAndOutputs();
