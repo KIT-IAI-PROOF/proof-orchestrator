@@ -224,6 +224,9 @@ public class OrchestrationService {
             	}
             }
             LoggingHelper.debug().log("WFC is startable, scheduling  WFC !");
+            // TODO: REFACTOR: 
+            // - better use prepareInitStep or prepareFirstStep?
+            // - better use WAITING until all blocks send back READY 
             this.workflowService.prepareNextStepForAllBlocks(); // prepareInitStep oder prepareFirstStep ??? Problem: erster Step ohne Values für Blöcke der 2. Stufe
             this.scheduleService.schedule(this.workflowService);
             this.workflowService.setSimulationStatus(SimulationStatus.READY);  // TODO::?? => WAITING setzen, bis alle Worker sich mit READY zurückgemeldet haben
