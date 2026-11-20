@@ -10,6 +10,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.StringJoiner;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -125,7 +126,17 @@ public class DockerHelper {
                 envVars.add("proof.worker.input.timeout=" + inputTimeout);
             }
         }
-        
+		// Overrides the classpath-bundled logback config with the one from the
+		// proof-files volume (mounted from the host's data/logback directory), so
+		// logging behaviour can be adjusted without rebuilding the orchestrator image.
+		if ( this.orchestrationConfig.getWorkerLogbackFile() != null ) {
+			envVars.add("logging.config=" + this.orchestrationConfig.getWorkerLogbackFile());
+		}
+		if (LoggingHelper.isLevelDebugOrTrace()) {
+			StringJoiner sj = new StringJoiner("\n", "Used environment variables for worker container '"+block.getIndex()+"':\n", "\n" );
+			envVars.forEach(e -> sj.add(e));
+			LoggingHelper.debug().log(sj.toString());
+		}
         return envVars;
     }
 
