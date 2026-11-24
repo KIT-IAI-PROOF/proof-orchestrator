@@ -50,6 +50,8 @@ public class ScheduleService {
      * @param workflowService Workflow to schedule
      */
     public void schedule(final WorkflowService workflowService) {
+        // Reset the elapsed time per execution.
+        this.elapsedTime_ms = 0L;
         this.stepDuration = workflowService.getStepBasedDuration();
         this.workerTimeout_ms = workflowService.getWorkflow().getStepBasedConfig().getWorkerTimeout() * 1000;
         
