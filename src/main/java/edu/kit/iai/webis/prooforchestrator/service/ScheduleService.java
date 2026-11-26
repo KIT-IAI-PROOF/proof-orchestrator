@@ -134,7 +134,8 @@ public class ScheduleService {
                     		workflowService.sendSyncMessage(ScheduleService.this.mqSyncProducer, SimulationPhase.EXECUTE);
                     }
                     else if( ScheduleService.this.elapsedTime_ms > ScheduleService.this.workerTimeout_ms
-                    		&& !shuttingDown ) 
+        		            && !shuttingDown 
+        		            && workflowService.getSimulationStatus() != SimulationStatus.FINALIZED ) 
                     {
                         LoggingHelper.info().log("worker timeout of %d ms exceeded! finalizing and shutting down ... ", 
                         		ScheduleService.this.workerTimeout_ms);
