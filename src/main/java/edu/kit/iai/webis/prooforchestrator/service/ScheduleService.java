@@ -203,7 +203,15 @@ public class ScheduleService {
                 }
                 final Long stepSize = Long.valueOf(1);
 
-                ScheduleService.this.elapsedTime_ms += ScheduleService.this.stepDuration;
+                // elapsedTime_ms measures "time since the last EXECUTE sync was sent" and is used only to
+                // decide whether a worker timed out while answering an EXECUTE (see the timeout branch above).
+                // Once the workflow has left the EXECUTE phase (getSimulationStatus() == FINALIZED) and
+                // moved into the FINALIZE/SHUT_DOWN tail, the clock must stop growing: otherwise it
+                // would keep creeping up past the worker timeout and spuriously re-trigger the FINALIZE branch,
+                // delivering a duplicate FINALIZE SYNC to blocks that already finished (-> "File is not opened yet").
+                if ( workflowService.getSimulationStatus() != SimulationStatus.FINALIZED ) {
+                    ScheduleService.this.elapsedTime_ms += ScheduleService.this.stepDuration;
+                }
                 LoggingHelper.debug().log("elapsed time: %d", ScheduleService.this.elapsedTime_ms);
                 executor.schedule(this, shuttingDown ? SHUTDOWN_DELAY : ScheduleService.this.stepDuration * stepSize, TimeUnit.MILLISECONDS);
             }
