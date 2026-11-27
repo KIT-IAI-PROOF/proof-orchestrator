@@ -153,7 +153,7 @@ public class OrchestrationService {
                     }
                     case DOCKER -> {
                         try {
-                            this.dockerHelper.processDockerExecution(workflow, executionId);
+                            this.dockerHelper.processDockerExecution(workflow, execution);
                         } catch (Exception e) {
                             LoggingHelper.error().log("ERROR processing docker! " + e.getMessage());
                             this.abortWorkflow(executionId, SimulationStatus.SHUT_DOWN);  // @TODO:  BS.STOPPED oder ABORTED besser?
